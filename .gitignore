@@ -1,0 +1,8 @@
+__pycache__/
+.DS_Store
+config_private.json
+*.csv
+!dvoa_projections.csv
+!historic_projected_spreads.csv
+!probability_spread_multiples.csv
+!weights.csv
