@@ -58,6 +58,15 @@ for i in cookie_list:
     cookie_dict[i.split('=')[0]] = i.split('=')[1]
 
 
+## rewrite config to file to match whats on the github repo, so the tracked file
+## remains unchanged and updates can be pushed ##
+config_private['pff']['raw_cookie_text'] = "YOUR COOKIE TEXT HERE"
+with open('{0}/config_private.json'.format(package_dir), 'w') as fp:
+    json.dump(config_private, fp, indent=2)
+
+
+
+
 ## helper to establish existing data ##
 def establish_existing_data():
     print('     Looking for most recent pff game data...')

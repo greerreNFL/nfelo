@@ -238,8 +238,15 @@ def game_data_merge():
     print('               slope: {0}...'.format(round(pff_slope,3)))
     print('               slope: {0}...'.format(round(pff_intercept,3)))
     ## apply ##
-    new_df['home_pff_point_margin'] = pff_intercept + pff_slope * new_df['home_overall_grade'].fillna(0)
-    new_df['away_pff_point_margin'] = pff_intercept + pff_slope * new_df['away_overall_grade'].fillna(0)
+    ## hard coded pff margins ##
+    ## deciding to freeze these to keep model consistent when looking backwards ##
+    pff_intercept = 1.263
+    pff_slope = -87.728
+    new_df['home_pff_point_margin'] = pff_intercept + pff_slope * new_df['home_overall_grade']
+    new_df['away_pff_point_margin'] = pff_intercept + pff_slope * new_df['away_overall_grade']
+    ## fill missing games with straight margin ##
+    new_df['home_pff_point_margin'] = new_df['home_pff_point_margin'].combine_first(new_df['home_score'] - new_df['away_score'])
+    new_df['away_pff_point_margin'] = new_df['away_pff_point_margin'].combine_first(new_df['away_score'] - new_df['home_score'])
     print('     Manually cleaning up bad scores...')
     new_df = new_df[final_headers]
     new_df = new_df.apply(apply_manual_fixes, manual_clean_dict=manual_clean_dict, axis=1)
