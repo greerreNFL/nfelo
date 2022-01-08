@@ -236,12 +236,12 @@ def game_data_merge():
     print('          PFF point margin model updated...')
     print('               rsq: {0}...'.format(round(model.rsquared,3)))
     print('               slope: {0}...'.format(round(pff_slope,3)))
-    print('               slope: {0}...'.format(round(pff_intercept,3)))
+    print('               intercept: {0}...'.format(round(pff_intercept,3)))
     ## apply ##
     ## hard coded pff margins ##
     ## deciding to freeze these to keep model consistent when looking backwards ##
-    pff_intercept = 1.263
-    pff_slope = -87.728
+    pff_intercept = -87.728
+    pff_slope = 1.263
     new_df['home_pff_point_margin'] = pff_intercept + pff_slope * new_df['home_overall_grade']
     new_df['away_pff_point_margin'] = pff_intercept + pff_slope * new_df['away_overall_grade']
     ## fill missing games with straight margin ##

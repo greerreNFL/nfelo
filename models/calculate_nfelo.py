@@ -80,6 +80,8 @@ def add_wepa(current_df, wepa_df):
     ## only full seasons ##
     wepa_df_reg = wepa_df.copy()
     last_full_season = wepa_df_reg[wepa_df_reg['game_number'] >= 16]['season'].max()
+    ## hard coding regression end date to maintain consistency w/ 17 game season ##
+    last_full_season = 2020
     wepa_df_reg = wepa_df_reg[wepa_df_reg['season'] <= last_full_season]
     wepa_df_reg['intercept_constant'] = 1
     model = sm.OLS(wepa_df_reg['margin'], wepa_df_reg[['wepa_net', 'intercept_constant']], hasconst=True).fit()

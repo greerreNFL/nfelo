@@ -64,8 +64,8 @@ This package is built and maintained by [@greerreNFL](https://twitter.com/greerr
 
 
 ## Version History
-
+* 0.11
+    * Missing PFF grades now default to actual MoV. PFF regression is hardcoded to maintain week-to-week consistency
 * 0.1
     * Initial package release
     * Includes nfelo v3.0 and workflow automations to recreate weekly predictions
-    

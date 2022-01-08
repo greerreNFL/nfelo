@@ -539,7 +539,7 @@
       ]
     },
     "nfelo" : {
-      "version" : 3.0,
+      "version" : 3.01,
       "current_loc" : "data_sources/formatted/current_file.csv",
       "wepa_loc" : "data_sources/wepa/wepa_flat_file.csv",
       "qb_loc" : "data_sources/538/538_game_data.csv",

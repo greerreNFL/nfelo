@@ -54,8 +54,12 @@ else:
 ## translate raw cookie text into dict ##
 cookie_dict = {}
 cookie_list = raw_cookie_text.split(';')
-for i in cookie_list:
-    cookie_dict[i.split('=')[0]] = i.split('=')[1]
+try:
+    for i in cookie_list:
+        cookie_dict[i.split('=')[0]] = i.split('=')[1]
+except:
+    print('   ************************* WARNING *************************')
+    print('   *** PFF cookie did not load. Likely needs to be updated ***')
 
 
 ## rewrite config to file to match whats on the github repo, so the tracked file
