@@ -22,6 +22,9 @@ dvoa_weekly_loc = config['formatting']['game_merge']['dvoa_weekly_loc']
 pff_loc = config['formatting']['game_merge']['pff_loc']
 
 pbp_team_standard_dict = config['data_pulls']['nflfastR']['team_standardization']
+pbp_surface_repl = config['data_pulls']['nflfastR']['surface_repl']
+pbp_timezones = config['data_pulls']['nflfastR']['timezones']
+pbp_timezone_overrides = config['data_pulls']['nflfastR']['timezone_overrides']
 game_headers = config['formatting']['game_merge']['game_headers']
 game_repl = config['formatting']['game_merge']['game_repl']
 home_dvoa_repl = config['formatting']['game_merge']['home_dvoa_repl']
@@ -57,6 +60,174 @@ def apply_manual_fixes(row, manual_clean_dict):
         pass
     return row
 
+
+def define_field_surfaces(game_df, surface_repl):
+    ## copy frame ##
+    temp_df = game_df.copy()
+    ## remove neutrals ##
+    temp_df = temp_df[
+        (temp_df['neutral_field'] != 1) &
+        (~pd.isnull(temp_df['home_score']))
+    ].copy()
+    ## standardize turf types ##
+    temp_df['surface'] = temp_df['surface'].replace(surface_repl)
+    ## generate df of field types by team ##
+    fields_df = temp_df.groupby(
+        ['home_team', 'season', 'surface']
+    ).agg(
+        games_played = ('home_score', 'count'),
+    ).reset_index()
+    ## get most played surface ##
+    fields_df = fields_df.sort_values(
+        by=['games_played'],
+        ascending=[False]
+    ).reset_index(drop=True)
+    fields_df = fields_df.groupby(
+        ['home_team', 'season']
+    ).head(1)
+    ## create new struc for handling start of season where team may not have a home game yet ##
+    last_season = temp_df['season'].max()
+    last_week = temp_df[
+        temp_df['season'] == last_season
+    ]['week'].max()
+    curr_month = datetime.datetime.now().month
+    ## if it's before week 1, increment current season ##
+    if curr_month <= 9 and curr_month >= 4 and last_week > 1:
+        last_season += 1
+    else:
+        pass
+    ## new struc containing every team and season ##
+    all_team_season_struc = []
+    for season in range(temp_df['season'].min(), last_season + 1):
+        for team in temp_df['home_team'].unique().tolist():
+            all_team_season_struc.append({
+                'team' : team,
+                'season' : season
+            })
+    all_team_season_df = pd.DataFrame(all_team_season_struc)
+    ## add fields ##
+    all_team_season_df = pd.merge(
+        all_team_season_df,
+        fields_df[[
+            'home_team', 'season', 'surface'
+        ]].rename(columns={
+            'home_team' : 'team'
+        }),
+        on=['team', 'season'],
+        how='left'
+    )
+    ## fill missing ##
+    all_team_season_df = all_team_season_df.sort_values(
+        by=['team', 'season'],
+        ascending=[True, True]
+    ).reset_index(drop=True)
+    all_team_season_df['surface'] = all_team_season_df.groupby(
+        ['team']
+    )['surface'].transform(lambda x: x.bfill().ffill())
+    ## eliminate any possibility of duping on eventual merge w/ unique records ##
+    all_team_season_df = all_team_season_df.drop_duplicates()
+    return all_team_season_df
+
+
+def define_time_advantages(game_df, timezones, timezone_overrides):
+    ## helper to apply overrides ##
+    def apply_tz_overrides(row, timezone_overrides):
+        home_overide = None
+        away_overide = None
+        ## try to load overrides ##
+        try:
+            home_overide = timezone_overrides[row['home_team']]
+        except:
+            pass
+        try:
+            away_overide = timezone_overrides[row['away_team']]
+        except:
+            pass
+        ## apply override if applicable ##
+        ## home ##
+        if home_overide is None:
+            pass
+        elif row['season'] <= home_overide['season']:
+            row['home_tz'] = home_overide['tz_override']
+        else:
+            pass
+        ## away ##
+        if away_overide is None:
+            pass
+        elif row['season'] <= away_overide['season']:
+            row['away_tz'] = away_overide['tz_override']
+        else:
+            pass
+        return row
+    ## copy frame ##
+    temp_df = game_df.copy()
+    peak_time = '14:00'
+    ## add time zones ##
+    temp_df['home_tz'] = temp_df['home_team'].replace(timezones).fillna('ET')
+    temp_df['away_tz'] = temp_df['away_team'].replace(timezones).fillna('ET')
+    ## apply overrides ##
+    temp_df = temp_df.apply(
+        apply_tz_overrides,
+        timezone_overrides=timezone_overrides,
+        axis=1
+    )
+    ## define optimals in ET ##
+    temp_df['home_optimal_in_et'] = pd.Timestamp(peak_time)
+    temp_df['away_optimal_in_et'] = pd.Timestamp(peak_time)
+    ## home ##
+    temp_df['home_optimal_in_et'] = numpy.where(
+        temp_df['home_tz'] == 'ET',
+        temp_df['home_optimal_in_et'].dt.time,
+        numpy.where(
+            temp_df['home_tz'] == 'CT',
+            (temp_df['home_optimal_in_et'] + pd.Timedelta(hours=1)).dt.time,
+            numpy.where(
+                temp_df['home_tz'] == 'MT',
+                (temp_df['home_optimal_in_et'] + pd.Timedelta(hours=2)).dt.time,
+                numpy.where(
+                    temp_df['home_tz'] == 'PT',
+                    (temp_df['home_optimal_in_et'] + pd.Timedelta(hours=3)).dt.time,
+                    temp_df['home_optimal_in_et'].dt.time
+                )
+            )
+        )
+    )
+    ## away ##
+    temp_df['away_optimal_in_et'] = numpy.where(
+        temp_df['away_tz'] == 'ET',
+        temp_df['away_optimal_in_et'].dt.time,
+        numpy.where(
+            temp_df['away_tz'] == 'CT',
+            (temp_df['away_optimal_in_et'] + pd.Timedelta(hours=1)).dt.time,
+            numpy.where(
+                temp_df['away_tz'] == 'MT',
+                (temp_df['away_optimal_in_et'] + pd.Timedelta(hours=2)).dt.time,
+                numpy.where(
+                    temp_df['away_tz'] == 'PT',
+                    (temp_df['away_optimal_in_et'] + pd.Timedelta(hours=3)).dt.time,
+                    temp_df['away_optimal_in_et'].dt.time
+                )
+            )
+        )
+    )
+    ## get kickoff ##
+    temp_df['gametimestamp'] = pd.to_datetime(temp_df['gametime'], format='%H:%M').dt.time
+    ## define advantage ##
+    temp_df['home_time_advantage'] = numpy.round(
+        numpy.absolute(
+            (
+                pd.to_datetime(temp_df['gametimestamp'], format='%H:%M:%S') -
+                pd.to_datetime(temp_df['away_optimal_in_et'], format='%H:%M:%S')
+            ) / numpy.timedelta64(1, 'h')
+        ) -
+        numpy.absolute(
+            (
+                pd.to_datetime(temp_df['gametimestamp'], format='%H:%M:%S') -
+                pd.to_datetime(temp_df['home_optimal_in_et'], format='%H:%M:%S')
+            ) / numpy.timedelta64(1, 'h')
+        )
+    )
+    return temp_df['home_time_advantage'].fillna(0)
 
 
 def game_data_merge():
@@ -247,6 +418,49 @@ def game_data_merge():
     ## fill missing games with straight margin ##
     new_df['home_pff_point_margin'] = new_df['home_pff_point_margin'].combine_first(new_df['home_score'] - new_df['away_score'])
     new_df['away_pff_point_margin'] = new_df['away_pff_point_margin'].combine_first(new_df['away_score'] - new_df['home_score'])
+    ## add meta for new hfa model ##
+    print('     Applying meta for new HFA model...')
+    final_len = len(new_df)
+    ## field ##
+    print('          Defining field surface types...')
+    fields_df = define_field_surfaces(new_df, pbp_surface_repl)
+    new_df = pd.merge(
+        new_df,
+        fields_df.rename(columns={
+            'team' : 'home_team',
+            'surface' : 'home_surface'
+        }),
+        on=['home_team', 'season'],
+        how='left'
+    )
+    new_df = pd.merge(
+        new_df,
+        fields_df.rename(columns={
+            'team' : 'away_team',
+            'surface' : 'away_surface'
+        }),
+        on=['away_team', 'season'],
+        how='left'
+    )
+    new_df['home_surface_advantage'] = numpy.where(
+        (new_df['home_surface'] != new_df['away_surface']) &
+        (new_df['surface'].replace(pbp_surface_repl) == new_df['home_surface']),
+        1,
+        0
+    )
+    final_len_post_fields = len(new_df)
+    print('          Joining fields data changed number of games by {0}...'.format(
+        final_len_post_fields - final_len
+    ))
+    ## timezone ##
+    print('          Defining timezone advantages...')
+    new_df['home_time_advantage'] = define_time_advantages(
+        new_df, pbp_timezones, pbp_timezone_overrides
+    )
+    final_len_post_tz = len(new_df)
+    print('          Joining timezone data changed number of games by {0}...'.format(
+        final_len_post_tz - final_len_post_fields
+    ))
     print('     Manually cleaning up bad scores...')
     new_df = new_df[final_headers]
     new_df = new_df.apply(apply_manual_fixes, manual_clean_dict=manual_clean_dict, axis=1)

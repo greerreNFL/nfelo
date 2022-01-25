@@ -45,6 +45,57 @@
         "TEN" : "TEN",
         "WAS" : "WAS"
       },
+      "surface_repl" : {
+        "fieldturf" : "artificial",
+        "fieldturf " : "artificial",
+        "matrixturf" : "artificial",
+        "sportturf" : "artificial",
+        "astroturf" : "artificial",
+        "astroplay" : "artificial",
+        "a_turf" : "artificial",
+        "grass" : "natural",
+        "dessograss" : "natural"
+      },
+      "timezones" : {
+        "ARI" : "MT",
+        "ATL" : "ET",
+        "BAL" : "ET",
+        "BUF" : "ET",
+        "CAR" : "ET",
+        "CHI" : "CT",
+        "CIN" : "ET",
+        "CLE" : "ET",
+        "DAL" : "CT",
+        "DEN" : "MT",
+        "DET" : "ET",
+        "GB" : "CT",
+        "HOU" : "CT",
+        "IND" : "ET",
+        "JAX" : "ET",
+        "KC" : "CT",
+        "LAR" : "PT",
+        "LAC" : "PT",
+        "MIA" : "ET",
+        "MIN" : "CT",
+        "NE" : "ET",
+        "NO" : "CT",
+        "NYG" : "ET",
+        "NYJ" : "ET",
+        "OAK" : "PT",
+        "PHI" : "ET",
+        "PIT" : "ET",
+        "SEA" : "PT",
+        "SF" : "PT",
+        "TB" : "ET",
+        "TEN" : "CT",
+        "WAS" : "ET"
+      },
+      "timezone_overrides" : {
+        "LAR" : {
+          "season" : 2015,
+          "tz_override" : "CT"
+        }
+      },
       "team_exclusions" : [
         "LA", "OAK", "SD", "STL"
       ]
@@ -406,6 +457,7 @@
         "closing_away_price_sbr",
         "neutral_field",
         "divisional_game",
+        "gametime",
         "market_implied_win_probability",
         "market_implied_elo_dif"
       ]
@@ -436,7 +488,8 @@
         "away_moneyline",
         "home_moneyline",
         "away_spread_odds",
-        "home_spread_odds"
+        "home_spread_odds",
+        "gametime"
       ],
       "game_repl" : {
         "gameday" : "game_date",
@@ -499,7 +552,9 @@
         "home_moneyline",
         "away_spread_odds",
         "home_spread_odds",
-        "market_implied_elo_dif"
+        "market_implied_elo_dif",
+        "home_surface_advantage",
+        "home_time_advantage"
       ],
       "manual_clean_dict" : {
         "2009_17_IND_BUF" : {"home_score" : 30, "away_score" :  7},
