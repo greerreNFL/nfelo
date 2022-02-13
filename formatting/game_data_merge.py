@@ -20,6 +20,8 @@ spread_loc = config['formatting']['game_merge']['spread_loc']
 dvoa_proj_loc = config['formatting']['game_merge']['dvoa_proj_loc']
 dvoa_weekly_loc = config['formatting']['game_merge']['dvoa_weekly_loc']
 pff_loc = config['formatting']['game_merge']['pff_loc']
+weather_loc = config['formatting']['game_merge']['weather_loc']
+
 
 pbp_team_standard_dict = config['data_pulls']['nflfastR']['team_standardization']
 pbp_surface_repl = config['data_pulls']['nflfastR']['surface_repl']
@@ -230,6 +232,44 @@ def define_time_advantages(game_df, timezones, timezone_overrides):
     return temp_df['home_time_advantage'].fillna(0)
 
 
+## weather ##
+## func to lookup weather from table ##
+def get_weather(team, season, week, weather_df):
+    if team == 'OAK' and season >= 2021:
+        team = 'LV'
+    elif team == 'LAC' and season < 2021:
+        team = 'SD'
+    elif team == 'LAR' and season < 2018:
+        team = 'STL'
+    else:
+        pass
+    temp = weather_df.loc[
+        (weather_df['team'] == team) &
+        (weather_df['week'] == week)
+    ].iloc[0]['week_temp']
+    return round(temp,1)
+
+
+## func to apply weather to each row ##
+def apply_weather(row, weather_df):
+    home_temp = get_weather(
+        row['home_team'],
+        row['season'],
+        row['week'],
+        weather_df
+    )
+    away_temp = get_weather(
+        row['away_team'],
+        row['season'],
+        row['week'],
+        weather_df
+    )
+    row['home_temp'] = home_temp
+    row['away_temp'] = away_temp
+    return row
+
+
+
 def game_data_merge():
     print('Merging game level datasets (fastr, market, pff, fbo)...')
     print('     Loading individual datasets...')
@@ -265,6 +305,13 @@ def game_data_merge():
         '{0}/{1}'.format(
             package_dir,
             pff_loc
+        ),
+        index_col=0
+    )
+    weather_df = pd.read_csv(
+        '{0}/{1}'.format(
+            package_dir,
+            weather_loc
         ),
         index_col=0
     )
@@ -460,6 +507,21 @@ def game_data_merge():
     final_len_post_tz = len(new_df)
     print('          Joining timezone data changed number of games by {0}...'.format(
         final_len_post_tz - final_len_post_fields
+    ))
+    ## weather ##
+    print('          Defining weather...')
+    new_df = new_df.apply(
+        apply_weather,
+        weather_df=weather_df,
+        axis=1
+    )
+    new_df['home_temp_advantage'] = numpy.absolute(
+        new_df['home_temp'] -
+        new_df['away_temp']
+    )
+    final_len_post_weather = len(new_df)
+    print('          Joining weather changed number of games by {0}...'.format(
+        final_len_post_weather - final_len_post_tz
     ))
     print('     Manually cleaning up bad scores...')
     new_df = new_df[final_headers]

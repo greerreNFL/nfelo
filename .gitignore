@@ -5,3 +5,4 @@ __pycache__/
 !historic_projected_spreads.csv
 !probability_spread_multiples.csv
 !weights.csv
+!temps_by_week.csv

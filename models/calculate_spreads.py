@@ -172,7 +172,10 @@ def get_current_week(spread_df, qb_df, game_df):
     ## add margin to be able to id the most recent game ##
     spread_df = pd.merge(
         spread_df,
-        game_df[['game_id','result', 'old_game_id', 'gameday', 'weekday', 'gametime']].copy(),
+        game_df[[
+            'game_id','result', 'old_game_id', 'gameday', 'weekday', 'gametime',
+            'home_surface_advantage', 'home_time_advantage', 'home_temp_advantage'
+        ]].copy(),
         on=['game_id'],
         how='left'
     )
@@ -304,30 +307,35 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
         current_hfa = hfa_df[
             ~pd.isnull(hfa_df['rolling_hfa'])
         ].tail(1).iloc[0]['rolling_hfa']
-        ## determine HFA ##
+        ## determine base HFA ##
         if row['neutral_field'] == 1:
-            hfa_mod_nfelo = 1
+            row['hfa_mod'] = 1
         else:
-            if row['divisional_game'] == 1:
-                hfa_mod_nfelo = config_nfelo['hfa_div'] * current_hfa * 25
-            else:
-                hfa_mod_nfelo = config_nfelo['hfa_non_div'] * current_hfa * 25
+            row['hfa_mod'] = current_hfa * 25
+        ## determine divisional mod ##
+        if row['divisional_game'] == 1:
+            row['div_mod'] = config_nfelo['hfa_div'] * row['hfa_mod']
+        else:
+            row['div_mod'] = config_nfelo['hfa_non_div'] * row['hfa_mod']
         ## determine bye advantages ##
-        home_bye_mod = 0
-        away_bye_mod = 0
+        row['home_bye_mod'] = 0
+        row['away_bye_mod'] = 0
         home_last_week = most_recent_elo_df.loc[most_recent_elo_df['team'] == row['home_team']]['week'].values[0]
         away_last_week = most_recent_elo_df.loc[most_recent_elo_df['team'] == row['away_team']]['week'].values[0]
         if row['week'] == 1:
             pass
         else:
             if row['week'] > home_last_week + 1:
-                home_bye_mod = config_nfelo['bye_week']
+                row['home_bye_mod'] = row['hfa_mod'] * config_nfelo['home_bye_week']
             else:
                 pass
             if row['week'] > away_last_week + 1:
-                away_bye_mod = config_nfelo['bye_week']
+                row['away_bye_mod'] = row['hfa_mod'] * config_nfelo['away_bye_week']
             else:
                 pass
+        ## determine field and time mods ##
+        row['surface_mod'] = row['home_surface_advantage'] * nfelo_config['dif_surface'] * row['hfa_mod']
+        row['time_mod'] = row['home_time_advantage'] * nfelo_config['time_advantage'] * row['hfa_mod']
         ## determine SoS rergession is (if necessary) ##
         home_fbo_proj = dvoa_projections.loc[(dvoa_projections['team'] == row['home_team']) & (dvoa_projections['season'] == row['season'])]['projected_total_dvoa'].values[0]
         away_fbo_proj = dvoa_projections.loc[(dvoa_projections['team'] == row['away_team']) & (dvoa_projections['season'] == row['season'])]['projected_total_dvoa'].values[0]
@@ -404,14 +412,14 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
         else:
             pass
         home_net_qb_adj = config_nfelo['qb_weight'] * (row['home_538_qb_adj'] - row['away_538_qb_adj'])
-        ## create baseline nfelo dif ##
         elo_dif_nfelo = (
-            row['home_nfelo_elo'] -
-            row['away_nfelo_elo'] +
-            hfa_mod_nfelo +
-            home_bye_mod -
-            away_bye_mod +
-            home_net_qb_adj
+            ## base elo difference ##
+            row['home_nfelo_elo'] - row['away_nfelo_elo'] +
+            ## impirical mods ##
+            row['hfa_mod'] + row['home_bye_mod'] + row['away_bye_mod'] +
+            row['surface_mod'] + row['time_mod'] + row['div_mod'] +
+            ## QB adjustment ##
+            nfelo_config['qb_weight'] * (row['home_538_qb_adj']-row['away_538_qb_adj'])
         )
         ## add playoff premium (if neccesary)
         if row['type'] == 'post':
@@ -497,8 +505,11 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
         row['regressed_dif'] = elo_dif_nfelo
         row['home_dif'] = row['home_nfelo_elo'] - row['away_nfelo_elo']
         row['home_net_qb_mod'] = home_net_qb_adj
-        row['home_net_bye_mod'] = home_bye_mod - away_bye_mod
-        row['home_net_HFA_mod'] = hfa_mod_nfelo
+        row['home_net_bye_mod'] = row['home_bye_mod'] + row['away_bye_mod']
+        row['home_net_HFA_mod'] = (
+            row['hfa_mod'] +
+            row['surface_mod'] + row['time_mod'] + row['div_mod']
+        )
         ## calc final probability and line ##
         row['home_probability_nfelo'] = (
             1.0 /
@@ -598,6 +609,12 @@ def calculate_spreads():
     )
     last_elo_df = get_last_recent_elo_values(elo_df.copy())
     ## get current week ##
+    ## rename columns to old names...probably want to clean up in future ##
+    game_df = game_df.rename(columns={
+        "game_date" : "gameday",
+        "game_day" : "weekday",
+    })
+    game_df['result'] = game_df['home_score'] - game_df['away_score']
     print('     Getting current week games...')
     unplayed_df = get_current_week(spread_df, qb_df, game_df)
     print('     Getting most recent nfelo information...')

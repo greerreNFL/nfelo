@@ -468,6 +468,7 @@
       "dvoa_proj_loc" : "data_sources/fbo/dvoa_projections.csv",
       "dvoa_weekly_loc" : "data_sources/fbo/weekly_dvoa_data.csv",
       "pff_loc" : "data_sources/pff/pff_game.csv",
+      "weather_loc" : "data_sources/formatted/temps_by_week.csv",
       "game_headers" : [
         "game_id",
         "type",
@@ -489,7 +490,8 @@
         "home_moneyline",
         "away_spread_odds",
         "home_spread_odds",
-        "gametime"
+        "gametime",
+        "old_game_id"
       ],
       "game_repl" : {
         "gameday" : "game_date",
@@ -554,7 +556,10 @@
         "home_spread_odds",
         "market_implied_elo_dif",
         "home_surface_advantage",
-        "home_time_advantage"
+        "home_time_advantage",
+        "home_temp_advantage",
+        "old_game_id",
+        "gametime"
       ],
       "manual_clean_dict" : {
         "2009_17_IND_BUF" : {"home_score" : 30, "away_score" :  7},
@@ -594,7 +599,7 @@
       ]
     },
     "nfelo" : {
-      "version" : 3.01,
+      "version" : 3.10,
       "current_loc" : "data_sources/formatted/current_file.csv",
       "wepa_loc" : "data_sources/wepa/wepa_flat_file.csv",
       "qb_loc" : "data_sources/538/538_game_data.csv",
@@ -652,28 +657,32 @@
       ],
       "rolling_window" : 8,
       "nfelo_config" : {
-        "config_name" : "nfelo_v2.92",
-        "model_desc" : "removed max market regression in shift",
-        "bye_week" : 25,
-        "hfa_div" : 0.7,
-        "hfa_non_div" : 1.14,
-        "rolling_hfa_window" : 900,
+        "config_name" : "nfelo_v3.10",
+        "model_desc" : "updated HFA model",
+        "reg_weeks" : 260,
+        "level_weeks" : 10,
+        "home_bye_week" : 0.30,
+        "away_bye_week" : -0.80,
+        "dif_surface" : 0.35,
+        "time_advantage" : 0.20,
+        "hfa_div" : -0.31,
+        "hfa_non_div" : 0.09,
         "reversion" : 0.3,
         "dvoa_weight" : 0.7,
-        "k" : 14.0,
+        "k" : 13.5,
         "z" : 400,
-        "b" : 6.5,
-        "margin_weight" : 0.65,
-        "pff_weight" : 0.20,
-        "wepa_weight" : 0.20,
+        "b" : 6.75,
+        "margin_weight" : 0.60,
+        "pff_weight" : 0.22,
+        "wepa_weight" : 0.18,
         "market_resist_factor" : 2.5,
         "qb_weight" : 1,
         "market_weight" : 0,
         "nfelo_span" : 4,
-        "market_regression" : 0.75,
+        "market_regression" : 0.80,
         "se_span" : 4,
         "rmse_base" : 3.5,
-        "spread_delta_base" : 3,
+        "spread_delta_base" : 1.5,
         "key_num_discount" : 0,
         "line_open_deflator" : 2,
         "long_line_inflator" : 0.25,
@@ -719,7 +728,7 @@
     "spreads" : {
       "elo_loc" : "data_sources/nfelo/current_file_w_analytics.csv",
       "spread_loc" : "data_sources/formatted/market_data.csv",
-      "game_loc" : "data_sources/legacy_pbp/games.csv",
+      "game_loc" : "data_sources/formatted/current_file.csv",
       "hfa_loc" : "data_sources/nfelo/rolling_hfa.csv",
       "elo_config" : {
           "config_name" : "538_elo",

@@ -36,23 +36,99 @@ output_folder = '/data_sources/nfelo'
 
 ## helper funcs ##
 ## calc rolling hfa ##
-def calc_rolling_hfa(current_df):
+def calc_rolling_hfa(current_df, level_weeks, reg_weeks):
     print('     Calculating rolling HFA...')
     hfa_df = current_df.copy()
     hfa_df['home_margin'] = hfa_df['home_score'] - hfa_df['away_score']
-    hfa_df['rolling_hfa'] = hfa_df.rolling(window=nfelo_config['rolling_hfa_window'])['home_margin'].mean()
+    ## agg on weeks for smoothing ##
     hfa_df = hfa_df.groupby(['season', 'week']).agg(
-        rolling_hfa = ('rolling_hfa', 'mean')
+        home_margin = ('home_margin', 'mean')
     ).reset_index()
-    ## shift back a game to avoid adding forward data to games ##
-    hfa_df['rolling_hfa'] = hfa_df['rolling_hfa'].shift(1)
+    ## to avoid overweighting playoffs, they are removed from regression ##
+    ## we also remove COVID season, which skews data ##
+    temp = hfa_df.copy()
+    temp = temp[
+        (temp['season'] != 2020) &
+        (
+            (
+                (temp['week'] <= 17) &
+                (temp['season'] < 2021)
+            ) |
+            (
+                (temp['week'] <= 18) &
+                (temp['season'] >= 2021)
+            )
+        )
+    ].copy()
+    temp = temp.reset_index(drop=True)
+    ## ema init and congig ##
+    a = 2 / (level_weeks + 1)
+    temp['level'] = 2.75
+    ## regression init and config ##
+    temp['intercept_constant'] = 1
+    for index, row in temp.iterrows():
+        if index < reg_weeks or index < level_weeks:
+            pass
+        else:
+            ## REGRESSION ##
+            ## window data ##
+            trailing_window = temp.iloc[
+                index-reg_weeks:index
+            ].copy()
+            trailing_window['week_num'] = numpy.arange(
+                len(trailing_window)
+            ) + 1
+            ## fit ##
+            reg = sm.OLS(
+                trailing_window['home_margin'],
+                trailing_window[['week_num','intercept_constant']],
+                hasconst=True
+            ).fit()
+            ## get update value ##
+            update_val = (
+                reg.params.intercept_constant +
+                (
+                    trailing_window['week_num'].max() *
+                    reg.params.week_num
+                )
+            )
+            ## EMA ##
+            ## get previous value ##
+            prev_level = temp.iloc[index-1]['level']
+            ## update prev week value ##
+            temp.loc[index, 'level'] = (
+                a * update_val +
+                (1-a) * prev_level
+            )
+            ## note, this level is *end of week* and needs to be shifted forward ##
+    ## shift updated value as next weeks forcast ##
+    ## weeks w/ not enough data in trailing window get 2.75 starting point ##
+    temp['rolling_hfa'] = temp['level'].shift(1).fillna(2.75)
+    ## add back to HFA df ##
+    hfa_df = pd.merge(
+        hfa_df[['season', 'week']],
+        temp[['season', 'week', 'rolling_hfa']],
+        on=['season', 'week'],
+        how='left'
+    )
+    ## fill 2020 with 0.25 for COVID ##
+    hfa_df['rolling_hfa'] = numpy.where(
+        hfa_df['season'] == 2020,
+        0.25,
+        hfa_df['rolling_hfa']
+    )
+    ## then forward fill forecasts for playoffs ##
+    hfa_df['rolling_hfa'] = hfa_df['rolling_hfa'].ffill()
+    ## save ##
     hfa_df.to_csv(
         '{0}{1}/rolling_hfa.csv'.format(
             package_dir,
             output_folder
         )
     )
+    ## then return ##
     return hfa_df
+
 
 
 ## calculating f8 l8 windows ##
@@ -294,15 +370,11 @@ def prep_elo_file(current_df, qb_df, hfa_df, nfelo_config):
         how='left'
     )
     ## fill blank observations with a standard 2.5 ##
-    elo_game_df['rolling_hfa'] = elo_game_df['rolling_hfa'].fillna(2.5)
+    elo_game_df['rolling_hfa'] = elo_game_df['rolling_hfa'].fillna(2.75)
     elo_game_df['hfa_mod'] = numpy.where(
         elo_game_df['neutral_field'] == 1,
         0,
-        numpy.where(
-            elo_game_df['divisional_game'] == 1,
-            nfelo_config['hfa_div'] * elo_game_df['rolling_hfa'] * 25,
-            nfelo_config['hfa_non_div'] * elo_game_df['rolling_hfa'] * 25
-        )
+        elo_game_df['rolling_hfa'] * 25
     )
     ## BYE ##
     ## home ##
@@ -311,7 +383,7 @@ def prep_elo_file(current_df, qb_df, hfa_df, nfelo_config):
         0,
         numpy.where(
             elo_game_df['week'] > elo_game_df['prev_week_home'] + 1,
-            nfelo_config['bye_week'],
+            elo_game_df['hfa_mod'] * nfelo_config['home_bye_week'],
             0
         )
     )
@@ -321,9 +393,26 @@ def prep_elo_file(current_df, qb_df, hfa_df, nfelo_config):
         0,
         numpy.where(
             elo_game_df['week'] > elo_game_df['prev_week_away'] + 1,
-            nfelo_config['bye_week'],
+            elo_game_df['hfa_mod'] * nfelo_config['away_bye_week'],
             0
         )
+    )
+    ## surface ##
+    elo_game_df['surface_mod'] = numpy.where(
+        elo_game_df['home_surface_advantage'] == 1,
+        0.5 * nfelo_config['dif_surface'] * elo_game_df['hfa_mod'],
+        -0.5 * nfelo_config['dif_surface'] * elo_game_df['hfa_mod']
+    )
+    ## time ##
+    elo_game_df['time_mod'] = (
+        elo_game_df['hfa_mod'] *
+        elo_game_df['home_time_advantage'] *
+        nfelo_config['time_advantage']
+    )
+    elo_game_df['div_mod'] = numpy.where(
+        elo_game_df['divisional_game'] == 1,
+        nfelo_config['hfa_div'] * elo_game_df['hfa_mod'],
+        nfelo_config['hfa_non_div'] * elo_game_df['hfa_mod']
     )
     ## playoffs ##
     elo_game_df['is_playoffs'] = numpy.where(
@@ -543,7 +632,8 @@ def calc_nfelo(elo_game_df, spread_mult_dict, spread_translation_dict, elo_dict,
             ## base elo difference ##
             row['starting_nfelo_home'] - row['starting_nfelo_away'] +
             ## impirical mods ##
-            row['hfa_mod'] + row['home_bye_mod'] - row['away_bye_mod'] +
+            row['hfa_mod'] + row['home_bye_mod'] + row['away_bye_mod'] +
+            row['surface_mod'] + row['time_mod'] + row['div_mod'] +
             ## QB adjustment ##
             config['qb_weight'] * (row['home_538_qb_adj']-row['away_538_qb_adj'])
         )
@@ -1316,7 +1406,9 @@ def compile_output(applied_elo_df, merged_df, rolling_window):
         'home_538_qb_adj', 'away_538_qb_adj',
         '538_brier', 'qbelo_brier', 'nfelo_unregressed_brier', 'nfelo_brier', 'market_brier', '538_open_ats', 'nfelo_open_ats',
         '538_close_ats', 'nfelo_close_ats', '538_open_ats_break_even','538_close_ats_break_even',
-        'home_ev', 'away_ev', 'home_ev_open', 'away_ev_open', 'hfa_mod', 'home_bye_mod', 'away_bye_mod',
+        'home_ev', 'away_ev', 'home_ev_open', 'away_ev_open',
+        ## HFA variables ##
+        'hfa_mod', 'home_bye_mod', 'away_bye_mod', 'div_mod', 'surface_mod', 'time_mod', 'home_time_advantage',
         'regression_factor_used', 'away_moneyline', 'home_moneyline', 'away_spread_odds', 'home_spread_odds',
         ## additional output to delete in the final version ##
         'rmse_only_mr_factor', 'is_hook', 'nfelo_home_line_close_pre_regression',
@@ -1498,7 +1590,11 @@ def calculate_nfelo():
         )
     )
     ## calc rolling hfa ##
-    hfa_df = calc_rolling_hfa(current_df)
+    hfa_df = calc_rolling_hfa(
+        current_df,
+        level_weeks = nfelo_config['level_weeks'],
+        reg_weeks = nfelo_config['reg_weeks']
+    )
     ## add wepa ##
     merged_df, wepa_slope, wepa_intercept = add_wepa(current_df, wepa_df)
     ## add windows ##
