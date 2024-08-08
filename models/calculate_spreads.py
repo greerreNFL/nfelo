@@ -28,7 +28,7 @@ nfelo_config = config['models']['nfelo']['nfelo_config']
 elo_config = config['models']['spreads']['elo_config']
 hfa_loc = config['models']['spreads']['hfa_loc']
 nfelo_version = config['models']['nfelo']['version']
-
+wt_ratings_loc = config['models']['nfelo']['wt_ratings_loc']
 
 
 output_folder = '/output_data'
@@ -297,7 +297,9 @@ def get_last_recent_elo_values(elo_df):
 
 
 
-def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_config, spread_mult_dict, spread_translation_dict, last_elo_df):
+def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_config, spread_mult_dict, spread_translation_dict, last_elo_df, wt_ratings):
+    ## container for seasonal regression data ##
+    reg_data = []
     ## sub function to apply info ##
     def add_info(row, config_nfelo):
         ## pull in most recent nfelo values ##
@@ -337,9 +339,20 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
         row['surface_mod'] = row['home_surface_advantage'] * nfelo_config['dif_surface'] * row['hfa_mod']
         row['time_mod'] = row['home_time_advantage'] * nfelo_config['time_advantage'] * row['hfa_mod']
         ## determine SoS rergession is (if necessary) ##
+        ## load dvoa ##
         home_fbo_proj = dvoa_projections.loc[(dvoa_projections['team'] == row['home_team']) & (dvoa_projections['season'] == row['season'])]['projected_total_dvoa'].values[0]
         away_fbo_proj = dvoa_projections.loc[(dvoa_projections['team'] == row['away_team']) & (dvoa_projections['season'] == row['season'])]['projected_total_dvoa'].values[0]
+        ## load wt ratings ##
+        home_wt_proj = wt_ratings.loc[(wt_ratings['team'] == row['home_team']) & (wt_ratings['season'] == row['season'])]['wt_rating'].values[0]
+        away_wt_proj = wt_ratings.loc[(wt_ratings['team'] == row['away_team']) & (wt_ratings['season'] == row['season'])]['wt_rating'].values[0]
         if row['week'] == 1:
+            ## container to write to reg_data ##
+            home_reg_record = {
+                'team' : row['home_team'],
+            }
+            away_reg_record = {
+                'team' : row['away_team'],
+            }
             ## get last years median elo for regression around propper mid point ##
             last_year_df = last_elo_df[
                 last_elo_df['season'] == row['season'] -1
@@ -359,6 +372,34 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
             print('          {0}:'.format(row['away_team']))
             print('               nfelo: {0}'.format(row['away_nfelo_elo']))
             print('               adj nfelo: {0}'.format(1505 + (row['away_nfelo_elo']-last_years_median_elo)))
+            ## add to reg_data ##
+            ## home ##
+            home_reg_record['previous_nfelo'] = row['home_nfelo_elo']
+            home_reg_record['previous_nfelo_normalized'] = 1505 + (row['home_nfelo_elo']-last_years_median_elo)
+            home_reg_record['adj_to_league_average'] = (
+                (1505 * config_nfelo['reversion']) +
+                (
+                    (
+                        1505 + (row['home_nfelo_elo'] - last_years_median_elo)
+                    ) * (1-config_nfelo['reversion'])
+                )
+            )
+            home_reg_record['dvoa_elo'] = 1505 + 484 * home_fbo_proj
+            home_reg_record['wt_ratings_elo'] = 1505 + 24.8 * home_wt_proj
+            ## away ##
+            away_reg_record['previous_nfelo'] = row['away_nfelo_elo']
+            away_reg_record['previous_nfelo_normalized'] = 1505 + (row['away_nfelo_elo']-last_years_median_elo)
+            away_reg_record['adj_to_league_average'] = (
+                (1505 * config_nfelo['reversion']) +
+                (
+                    (
+                        1505 + (row['away_nfelo_elo'] - last_years_median_elo)
+                    ) * (1-config_nfelo['reversion'])
+                )
+            )
+            away_reg_record['dvoa_elo'] = 1505 + 484 * away_fbo_proj
+            away_reg_record['wt_ratings_elo'] = 1505 + 24.8 * away_wt_proj
+            ## heres where we do the actual regression ##
             row['home_nfelo_elo'] = (
                 (
                     (
@@ -369,11 +410,15 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
                             ) * (1-config_nfelo['reversion'])
                         )
                     ) *
-                    (1-config_nfelo['dvoa_weight'])
+                    (1-config_nfelo['dvoa_weight']-config_nfelo['wt_ratings_weight'])
                 ) +
                 (
                     config_nfelo['dvoa_weight'] *
                     (1505 + 484 * home_fbo_proj)
+                ) +
+                (
+                    config_nfelo['wt_ratings_weight'] *
+                    (1505 + 24.8 * home_wt_proj)
                 )
             )
             row['away_nfelo_elo'] = (
@@ -386,13 +431,30 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
                             ) * (1-config_nfelo['reversion'])
                         )
                     ) *
-                    (1-config_nfelo['dvoa_weight'])
+                    (1-config_nfelo['dvoa_weight']-config_nfelo['wt_ratings_weight'])
                 ) +
                 (
                     config_nfelo['dvoa_weight'] *
                     (1505 + 484 * away_fbo_proj)
+                ) +
+                (
+                    config_nfelo['wt_ratings_weight'] *
+                    (1505 + 24.8 * away_wt_proj)
                 )
             )
+            ## finish and write ##
+            home_reg_record['new_nfelo'] = row['home_nfelo_elo']
+            away_reg_record['new_nfelo'] = row['away_nfelo_elo']
+            ## add weights ##
+            home_reg_record['reversion'] = config_nfelo['reversion']
+            home_reg_record['dvoa_weight'] = config_nfelo['dvoa_weight']
+            home_reg_record['wt_ratings_weight'] = config_nfelo['wt_ratings_weight']
+            away_reg_record['reversion'] = config_nfelo['reversion']
+            away_reg_record['dvoa_weight'] = config_nfelo['dvoa_weight']
+            away_reg_record['wt_ratings_weight'] = config_nfelo['wt_ratings_weight']
+            ## add to reg_data ##
+            reg_data.append(home_reg_record)
+            reg_data.append(away_reg_record)
         else:
             pass
         ## qb adj ##
@@ -510,6 +572,7 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
             row['hfa_mod'] +
             row['surface_mod'] + row['time_mod'] + row['div_mod']
         )
+        row['base_hfa'] = current_hfa
         ## calc final probability and line ##
         row['home_probability_nfelo'] = (
             1.0 /
@@ -527,6 +590,15 @@ def add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_c
         row['nfelo_spread_delta'] = abs(row['home_closing_line_rounded_nfelo'] - row['home_line_close'])
         return row
     applied_unplayed_df = unplayed_df.apply(add_info, config_nfelo=nfelo_config, axis=1)
+    ## if we did an offseason regression, save ##
+    if len(reg_data) > 0:
+        reg_df = pd.DataFrame(reg_data)
+        reg_df.to_csv(
+            '{0}{1}/off_season_regressions.csv'.format(
+                package_dir,
+                output_folder
+            )
+        )
     return applied_unplayed_df
 
 
@@ -607,6 +679,13 @@ def calculate_spreads():
         ),
         index_col=0
     )
+    wt_ratings_df = pd.read_csv(
+        '{0}/{1}'.format(
+            package_dir,
+            wt_ratings_loc
+        ),
+        index_col=0
+    )
     last_elo_df = get_last_recent_elo_values(elo_df.copy())
     ## get current week ##
     ## rename columns to old names...probably want to clean up in future ##
@@ -640,7 +719,17 @@ def calculate_spreads():
     spread_dict['implied_win_prob'] = spread_dict['implied_win_prob'].round(3)
     spread_translation_dict = dict(zip(spread_dict['spread'],spread_dict['implied_win_prob']))
     print('     Calculating spreads...')
-    applied_unplayed_df = add_lines(unplayed_df, most_recent_elo_df, hfa_df, dvoa_projections, nfelo_config, spread_mult_dict, spread_translation_dict, last_elo_df)
+    applied_unplayed_df = add_lines(
+        unplayed_df,
+        most_recent_elo_df,
+        hfa_df,
+        dvoa_projections,
+        nfelo_config,
+        spread_mult_dict,
+        spread_translation_dict,
+        last_elo_df,
+        wt_ratings_df
+    )
     print('     Calculating EVs...')
     applied_unplayed_df = apply_probabilities(applied_unplayed_df, dist_df)
     ## sort and filter for output ##
@@ -664,9 +753,13 @@ def calculate_spreads():
         'market_regression_factor',
         'regressed_dif',
         'market_implied_elo_dif',
-        'home_net_qb_mod',
-        'home_net_HFA_mod',
+        'base_hfa',
         'home_net_bye_mod',
+        'div_mod',
+        'surface_mod',
+        'time_mod',
+        'home_net_HFA_mod',
+        'home_net_qb_mod',
         'home_538_qb_adj',
         'away_538_qb_adj',
         'home_538_qb',

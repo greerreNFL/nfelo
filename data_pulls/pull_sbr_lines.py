@@ -80,7 +80,46 @@ def pull_sbr_events(most_recent_event_df, most_recent_season, existing_event_ids
         start_date = datetime.datetime.strptime('{0}-09-03'.format(year), '%Y-%m-%d')
         start_date_unix = int(datetime.datetime.timestamp(start_date)*1000)
         ## format query string ##
-        event_query_string = """{ eventsByDateByLeagueGroup( es: ["in-progress", "scheduled", "complete", "suspended", "delayed", "postponed", "retired", "canceled"], leagueGroups: [{ mtid: 401, lid: 16, spid: 4 }], providerAcountOpener: 8, hoursRange: 5000, showEmptyEvents: false, marketTypeLayout: "PARTICIPANTS", ic: false, startDate: $START_DATE, timezoneOffset: -4, nof: true, hl: true, sort: {by: ["lid", "dt", "des"], order: ASC} ) { events { eid lid spid des dt es rid ic ven tvs cit cou st sta hl seid writeingame plays(pgid: 2, limitLastSeq: 3, pgidWhenFinished: -1) { eid sqid siid gid nam val tim } scores { partid val eid pn sequence } participants { eid partid partbeid psid ih rot tr sppil sppic startingPitcher { fn lnam } source { ... on Player { pid fn lnam } ... on Team { tmid lid tmblid nam nn sn abbr cit senam imageurl } ... on ParticipantGroup { partgid nam lid participants { eid partid psid ih rot source { ... on Player { pid fn lnam } ... on Team { tmid lid nam nn sn abbr cit } } } } } } marketTypes { mtid spid nam des settings { sitid did alias format template sort url } }  eventGroup { egid nam } statistics(sgid: 3, sgidWhenFinished: 4) { val eid nam partid pid typ siid sequence } league { lid nam rid spid sn settings { alias rotation ord shortnamebreakpoint matchupline } } } maxSequences { events: eventsMaxSequence scores: scoresMaxSequence currentLines: linesMaxSequence statistics: statisticsMaxSequence plays: playsMaxSequence consensus: consensusMaxSequence } } }""".replace('$START_DATE', '{0}'.format(start_date_unix))
+        ## OLD CODE ON A DEPRECATED END POINT ##
+        # event_query_string = """{ eventsByDateByLeagueGroup( es: ["in-progress", "scheduled", "complete", "suspended", "delayed", "postponed", "retired", "canceled"], leagueGroups: [{ mtid: 401, lid: 16, spid: 4 }], providerAcountOpener: 8, hoursRange: 5000, showEmptyEvents: false, marketTypeLayout: "PARTICIPANTS", ic: false, startDate: $START_DATE, timezoneOffset: -4, nof: true, hl: true, sort: {by: ["lid", "dt", "des"], order: ASC} ) { events { eid lid spid des dt es rid ic ven tvs cit cou st sta hl seid writeingame plays(pgid: 2, limitLastSeq: 3, pgidWhenFinished: -1) { eid sqid siid gid nam val tim } scores { partid val eid pn sequence } participants { eid partid partbeid psid ih rot tr sppil sppic startingPitcher { fn lnam } source { ... on Player { pid fn lnam } ... on Team { tmid lid tmblid nam nn sn abbr cit senam imageurl } ... on ParticipantGroup { partgid nam lid participants { eid partid psid ih rot source { ... on Player { pid fn lnam } ... on Team { tmid lid nam nn sn abbr cit } } } } } } marketTypes { mtid spid nam des settings { sitid did alias format template sort url } }  eventGroup { egid nam } statistics(sgid: 3, sgidWhenFinished: 4) { val eid nam partid pid typ siid sequence } league { lid nam rid spid sn settings { alias rotation ord shortnamebreakpoint matchupline } } } maxSequences { events: eventsMaxSequence scores: scoresMaxSequence currentLines: linesMaxSequence statistics: statisticsMaxSequence plays: playsMaxSequence consensus: consensusMaxSequence } } }""".replace('$START_DATE', '{0}'.format(start_date_unix))
+        # ## format request ##
+        # payload = {
+        #     'query' : event_query_string
+        # }
+        # ## make request ##
+        # r = requests.get(
+        #     api_url,
+        #     params=payload,
+        #     headers=headers
+        # )
+        # if r.status_code != 200:
+        #     print('          Request failed...')
+        #     print('          Status code: {0}'.format(r.status_code))
+        #     print('          Text: {0}'.format(r.text))
+        # ## parse response
+        # r_json = r.json()
+        # try:
+        #     events = r_json['data']['eventsByDateByLeagueGroup']['events']
+        # except Exception as e:
+        #     print('          Error parsing json...')
+        #     print('          Error: {0}'.format(e))
+        #     print('          JSON: {0}'.format(r_json))
+        # events = r_json['data']['eventsByDateByLeagueGroup']['events']
+        ## format query string ##
+        event_query_string = '''
+        {eventsByDateNew(
+          startDate: $START_DATE,
+          hoursRange: 5000,
+          lid: [16],
+          mtid: [401],
+          showEmptyEvents: false,
+          sort: {
+              by: ["lid", "dt", "des"],
+              order: ASC
+          },
+          es: ["in-progress", "scheduled", "complete", "suspended", "delayed", "postponed", "retired", "canceled"]
+        ) { events { eid lid spid des dt es rid ic ven tvs cit cou st sta hl seid writeingame plays(pgid: 2, limitLastSeq: 3, pgidWhenFinished: -1) { eid sqid siid gid nam val tim } scores { partid val eid pn sequence } participants { eid partid partbeid psid ih rot tr sppil sppic startingPitcher { fn lnam } source { ... on Player { pid fn lnam } ... on Team { tmid lid tmblid nam nn sn abbr cit senam imageurl } ... on ParticipantGroup { partgid nam lid participants { eid partid psid ih rot source { ... on Player { pid fn lnam } ... on Team { tmid lid nam nn sn abbr cit } } } } } } marketTypes { mtid spid nam des settings { sitid did alias format template sort url } }  eventGroup { egid nam } statistics(sgid: 3, sgidWhenFinished: 4) { val eid nam partid pid typ siid sequence } league { lid nam rid spid sn settings { alias rotation ord shortnamebreakpoint matchupline } } } maxSequences { events: eventsMaxSequence scores: scoresMaxSequence currentLines: linesMaxSequence statistics: statisticsMaxSequence plays: playsMaxSequence consensus: consensusMaxSequence } } }
+        '''.replace('$START_DATE', '{0}'.format(start_date_unix))
         ## format request ##
         payload = {
             'query' : event_query_string
@@ -91,9 +130,19 @@ def pull_sbr_events(most_recent_event_df, most_recent_season, existing_event_ids
             params=payload,
             headers=headers
         )
+        if r.status_code != 200:
+            print('          Request failed...')
+            print('          Status code: {0}'.format(r.status_code))
+            print('          Text: {0}'.format(r.text))
         ## parse response
         r_json = r.json()
-        events = r_json['data']['eventsByDateByLeagueGroup']['events']
+        try:
+            events = r_json['data']['eventsByDateNew']['events']
+        except Exception as e:
+            print('          Error parsing json...')
+            print('          Error: {0}'.format(e))
+            print('          JSON: {0}'.format(r_json))
+        events = r_json['data']['eventsByDateNew']['events']
         ## add data to container ##
         for event in events:
             try:

@@ -5,8 +5,6 @@ import datetime
 import pathlib
 import json
 
-
-
 ## get package directory ##
 package_dir = pathlib.Path(__file__).parent.parent.resolve()
 
@@ -62,7 +60,10 @@ def format_spreads():
         index_col=0
     )
     ## group to make sure we aren't adding any dupes ##
-    alt_df = alt_df.groupby(['game_id']).head(1)
+    alt_df = alt_df.sort_values(
+        by=['game_id', 'eid'],
+        ascending=[True, False]
+    ).reset_index(drop=True).groupby(['game_id']).head(1)
     print('     Loading TFL lines...')
     tfl_df = pd.read_csv(
         '{0}/{1}'.format(

@@ -28,7 +28,7 @@ key_nums = config['models']['nfelo']['key_nums']
 rolling_window = config['models']['nfelo']['rolling_window']
 nfelo_config = config['models']['nfelo']['nfelo_config']
 begining_elo = config['models']['nfelo']['begining_elo']
-
+wt_ratings_loc = config['models']['nfelo']['wt_ratings_loc']
 
 
 output_folder = '/data_sources/nfelo'
@@ -59,6 +59,10 @@ def calc_rolling_hfa(current_df, level_weeks, reg_weeks):
                 (temp['season'] >= 2021)
             )
         )
+    ].copy()
+    ## drop weeks w/o game resultes ##
+    temp = temp[
+        ~pd.isnull(temp['home_margin'])
     ].copy()
     temp = temp.reset_index(drop=True)
     ## ema init and congig ##
@@ -157,7 +161,7 @@ def add_wepa(current_df, wepa_df):
     wepa_df_reg = wepa_df.copy()
     last_full_season = wepa_df_reg[wepa_df_reg['game_number'] >= 16]['season'].max()
     ## hard coding regression end date to maintain consistency w/ 17 game season ##
-    last_full_season = 2020
+    last_full_season = 2021
     wepa_df_reg = wepa_df_reg[wepa_df_reg['season'] <= last_full_season]
     wepa_df_reg['intercept_constant'] = 1
     model = sm.OLS(wepa_df_reg['margin'], wepa_df_reg[['wepa_net', 'intercept_constant']], hasconst=True).fit()
@@ -320,6 +324,30 @@ def calc_rolling_info(merged_df, current_df, wepa_slope, wepa_intercept):
         axis=1
     )
     return merged_df, current_df, merged_df_elo
+
+
+def add_wt_ratings(current_df, wt_ratings):
+    ## add to current df ##
+    current_df = pd.merge(
+        current_df,
+        wt_ratings[['season','team','wt_rating']].rename(columns={
+            'team' : 'home_team',
+            'wt_rating' : 'home_wt_rating',
+        }),
+        on=['season', 'home_team'],
+        how='left'
+    )
+    current_df = pd.merge(
+        current_df,
+        wt_ratings[['season','team','wt_rating']].rename(columns={
+            'team' : 'away_team',
+            'wt_rating' : 'away_wt_rating',
+        }),
+        on=['season', 'away_team'],
+        how='left'
+    )
+    return current_df
+
 
 
 def prep_elo_file(current_df, qb_df, hfa_df, nfelo_config):
@@ -566,24 +594,30 @@ def calc_nfelo(elo_game_df, spread_mult_dict, spread_translation_dict, elo_dict,
     ## defines func inside of func that can reference func variables ##
     def generate_nfelo(row, config):
         ## pull through elo probs and calc lines ##
-        row['538_home_line_close_rounded'] = round(2 * (
-            spread_mult_dict[round(row['home_538_prob'],3)]
-        ), 0) / 2
-        row['qbelo_home_line_close_rounded'] = round(2 * (
-            spread_mult_dict[round(row['qbelo_prob1'],3)]
-        ), 0) / 2
-        row['538_home_line_close'] = (
-            ## look up spread multiplier ##
-            -16 *
-            ## multiply by a s
-            math.log10(row['home_538_prob'] / max(1-row['home_538_prob'],.001))
-        )
-        row['qbelo_home_line_close'] = (
-            ## look up spread multiplier ##
-            -16 *
-            ## multiply by a s
-            math.log10(row['qbelo_prob1'] / max(1-row['qbelo_prob1'],.001))
-        )
+        try:
+            row['538_home_line_close_rounded'] = round(2 * (
+                spread_mult_dict[round(row['home_538_prob'],3)]
+            ), 0) / 2
+            row['qbelo_home_line_close_rounded'] = round(2 * (
+                spread_mult_dict[round(row['qbelo_prob1'],3)]
+            ), 0) / 2
+            row['538_home_line_close'] = (
+                ## look up spread multiplier ##
+                -16 *
+                ## multiply by a s
+                math.log10(row['home_538_prob'] / max(1-row['home_538_prob'],.001))
+            )
+            row['qbelo_home_line_close'] = (
+                ## look up spread multiplier ##
+                -16 *
+                ## multiply by a s
+                math.log10(row['qbelo_prob1'] / max(1-row['qbelo_prob1'],.001))
+            )
+        except:
+            row['538_home_line_close_rounded'] = numpy.nan
+            row['qbelo_home_line_close_rounded'] = numpy.nan
+            row['538_home_line_close'] = numpy.nan
+            row['qbelo_home_line_close'] = numpy.nan
         ## create starting and ending nfelos ##
         row['starting_nfelo_home'] = None
         row['starting_nfelo_away'] = None
@@ -598,14 +632,16 @@ def calc_nfelo(elo_game_df, spread_mult_dict, spread_translation_dict, elo_dict,
                 last_years_median_elo = statistics.median(yearly_elos[row['season']-1])
                 row['starting_nfelo_home'] = (
                     ## Normal Elo reversion
-                    (1 - config['dvoa_weight']) * (config['reversion'] * 1505 + (1 - config['reversion']) * (
+                    (1 - config['dvoa_weight'] - config['wt_ratings_weight']) * (config['reversion'] * 1505 + (1 - config['reversion']) * (
                         1505 + (
                             elo_dict[row['home_team']][row['prev_game_id_home']]['ending'] -
                             last_years_median_elo
                         )
                     )) +
                     ## Blend in FBO Prior ##
-                    (config['dvoa_weight'])     * (1505 + 484 * row['home_projected_dvoa'])
+                    ((config['dvoa_weight'])     * (1505 + 484 * row['home_projected_dvoa'])) +
+                    ## blend in wt ratings ##
+                    ((config['wt_ratings_weight']) * (1505 + 24.8 * row['home_wt_rating']))
                 )
         else:
             row['starting_nfelo_home'] = elo_dict[row['home_team']][row['prev_game_id_home']]['ending']
@@ -616,14 +652,16 @@ def calc_nfelo(elo_game_df, spread_mult_dict, spread_translation_dict, elo_dict,
                 last_years_median_elo = statistics.median(yearly_elos[row['season']-1])
                 row['starting_nfelo_away'] = (
                     ## Normal Elo reversion ##
-                    (1 - config['dvoa_weight']) * (config['reversion'] * 1505 + (1 - config['reversion']) * (
+                    (1 - config['dvoa_weight'] - config['wt_ratings_weight']) * (config['reversion'] * 1505 + (1 - config['reversion']) * (
                         1505 + (
                             elo_dict[row['away_team']][row['prev_game_id_away']]['ending'] -
                             last_years_median_elo
                         )
                     )) +
                     ## Blend in FBO Prior ##
-                    (config['dvoa_weight'])     * (1505 + 484 * row['away_projected_dvoa'])
+                    ((config['dvoa_weight'])     * (1505 + 484 * row['away_projected_dvoa'])) +
+                    ## blend in wt ratings ##
+                    ((config['wt_ratings_weight']) * (1505 + 24.8 * row['away_wt_rating']))
                 )
         else:
             row['starting_nfelo_away'] = elo_dict[row['away_team']][row['prev_game_id_away']]['ending']
@@ -793,6 +831,13 @@ def calc_nfelo(elo_game_df, spread_mult_dict, spread_translation_dict, elo_dict,
             row['home_line_close'], config, False
         )
         ## wepa ##
+        ## control for missing ##
+        if pd.isnull(row['home_net_wepa_point_margin']) or pd.isnull(row['away_net_wepa_point_margin']):
+            print('              Missing WEPA -- using straight margin')
+            row['home_net_wepa_point_margin'] = row['home_margin']
+            row['away_net_wepa_point_margin'] = -1 * row['home_margin']
+        else:
+            pass
         wepa_shift_home = shift_calc_helper(
             row['home_net_wepa_point_margin'], row['nfelo_home_line_close_pre_regression'],
             row['home_line_close'], config, True
@@ -1589,6 +1634,13 @@ def calculate_nfelo():
             spread_translation_loc
         )
     )
+    wt_ratings_df = pd.read_csv(
+        '{0}/{1}'.format(
+            package_dir,
+            wt_ratings_loc
+        ),
+        index_col=0
+    )
     ## calc rolling hfa ##
     hfa_df = calc_rolling_hfa(
         current_df,
@@ -1599,6 +1651,7 @@ def calculate_nfelo():
     merged_df, wepa_slope, wepa_intercept = add_wepa(current_df, wepa_df)
     ## add windows ##
     merged_df, current_df, merged_df_elo = calc_rolling_info(merged_df, current_df, wepa_slope, wepa_intercept)
+    current_df = add_wt_ratings(current_df, wt_ratings_df)
     print('     Calculating Elos...')
     ## pull out spread dict ##
     pre_dict['win_prob'] = pre_dict['win_prob'].round(3)

@@ -14,10 +14,9 @@ config = None
 with open('{0}/config.json'.format(package_dir), 'r') as fp:
     config = json.load(fp)
 
-name_standardization_dict = config['data_pulls']['nflfastR']['team_standardization']
-starting_season = config['data_pulls']['nflfastR']['pbp_starting_year']
-roster_url = config['data_pulls']['nflfastR']['roster_loc']
 
+starting_season = config['data_pulls']['nflfastR']['participant_starting_year']
+part_url = config['data_pulls']['nflfastR']['participant_loc']
 
 ## create output sub path ##
 output_folder = '/data_sources/legacy_pbp'
@@ -36,46 +35,28 @@ if datetime.date.today() > datetime.date(
 else:
     ending_season = datetime.date.today().year - 1
 
-
 def data_pull(current_season, ending_season, package_dir, output_folder):
     ## pull data ##
-    print('Updating Roster data...')
+    print('Updating Participant data...')
     ## pull data ##
     all_dfs = []
     while current_season <= ending_season:
-        print('     Downloading {0} roster data...'.format(current_season))
-        roster_df = pd.read_csv(
-            '{0}/roster_{1}.csv?raw=true'.format(
-                roster_url,
+        print('     Downloading {0} participant data...'.format(current_season))
+        temp = pd.read_csv(
+            '{0}/pbp_participation_{1}.csv'.format(
+                part_url,
                 current_season
             ),
-            low_memory=False
         )
-        all_dfs.append(roster_df)
+        temp['season'] = current_season
+        all_dfs.append(temp)
         current_season += 1
     ## combine ##
-    print('     Combining and formatting...')
-    all_seasons = pd.concat(all_dfs)
-    all_seasons['team'] = all_seasons['team'].replace(
-        name_standardization_dict
-    )
-    ## drop columns that might cause dupes ##
-    all_season = all_seasons.drop(columns=[
-        'week', 'game_type'
-    ])
-    ## save ##
-    ## fix errors in file ##
-    print('     Fixing errors in roster file...')
-    ## cutler's gsis id ##
-    all_seasons.loc[
-        (all_seasons['full_name'] == 'Jay Cutler') &
-        (all_seasons['team'] == 'CHI') &
-        (all_seasons['season'] == 2010), 
-        ['gsis_id']
-    ] = '00-0024226'
     print('     Saving...')
+    all_seasons = pd.concat(all_dfs)
+    ## save ##
     all_seasons.to_csv(
-        '{0}/{1}/roster.csv'.format(
+        '{0}/{1}/participants.csv'.format(
             package_dir,
             output_folder
         )
@@ -83,5 +64,5 @@ def data_pull(current_season, ending_season, package_dir, output_folder):
 
 
 ## define function to run data pull ##
-def pull_nflfastR_roster():
+def pull_nflfastR_participants():
     data_pull(current_season, ending_season, package_dir, output_folder)

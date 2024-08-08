@@ -7,6 +7,7 @@ import json
 import random
 import time
 import requests
+import brotli
 
 ## get package directory ##
 package_dir = pathlib.Path(__file__).parent.parent.resolve()
@@ -106,14 +107,14 @@ def data_pull():
         print('        Pulling {0} pff game grades...'.format(most_recent_season))
         for team in range(1,33):
             print('             On team {0} of 32...'.format(team))
-            time.sleep((5 + random.random() * 25)) ## be kind to their servers ##
+            time.sleep((5 + random.random() * 20)) ## be kind to their servers ##
             payload = {
                 'league' : 'nfl',
                 'season' : str(most_recent_season),
                 'week' : '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21',
                 'franchise_id' : str(team),
             }
-            url = 'https://premium.pff.com/api/v1/teams/summary?'
+            url = 'https://premium.pff.com/api/v1//teams/summary?'
             ## copy headers to add a refer param ##
             temp_headers = headers.copy()
             temp_headers['referer'] = 'https://premium.pff.com/nfl/teams/{0}/summary?season={1}&weekGroup=REG'.format(
@@ -134,7 +135,17 @@ def data_pull():
                 break
             else:
                 pass
-            json_data = json.loads(raw.content)
+            ## parse response ##
+            json_data = []
+            try:
+                json_data = json.loads(raw.content)
+            except Exception as e:
+                print('             Could not parse json. Ending scrape')
+                print('                  Error: {0}'.format(e))
+                print('                  Response Text: {0}'.format(raw.text))
+                print('                  Response Content: {0}'.format(raw.content))
+                save_update = False
+                break
             resp_keys = []
             ## parse response ##
             try:
