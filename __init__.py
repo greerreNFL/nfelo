@@ -15,3 +15,7 @@ from .models.calculate_wepa import calculate_wepa
 from .models.calculate_nfelo import calculate_nfelo
 from .models.calculate_spreads import calculate_spreads
 from .models.calculate_wt_ratings import update_wt_ratings
+
+from .nfelo import DataLoader
+from .nfelo import Nfelo
+from .nfelo import update_nfelo
