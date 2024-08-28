@@ -29,3 +29,5 @@ def update_nfelo():
     )
     ## grade #
     graded = NfeloGrader(nfelo.updated_file)
+    graded.print_scores()
+    graded.save_scores()

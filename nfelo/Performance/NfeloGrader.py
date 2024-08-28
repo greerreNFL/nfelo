@@ -81,8 +81,6 @@ class NfeloGrader:
         self.graded_games = df[['game_id', 'season', 'week']].copy()
         self.graded_records = []
         self.grade_models()
-        self.print_scores()
-        self.save_scores()
 
     def grade_models(self):
         '''
@@ -116,11 +114,12 @@ class NfeloGrader:
         ).reset_index(drop=True)
         print(graded_summary)
     
-    def save_scores(self):
+    def save_scores(self, loc=None):
         '''
         Saves the individual scores
         '''
-        loc = '{0}/Data/Intermediate Data/scored_individual_games.csv'.format(
-            pathlib.Path(__file__).parent.parent.resolve()
-        )
+        if loc is None:
+            loc = '{0}/Data/Intermediate Data/scored_individual_games.csv'.format(
+                pathlib.Path(__file__).parent.parent.resolve()
+            )
         self.graded_games.to_csv(loc)

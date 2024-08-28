@@ -335,4 +335,25 @@ class Nfelo:
                 pathlib.Path(__file__).parent.parent.resolve()
             )
         )
+    
+    def update_config(self, new_config):
+        '''
+        Re inits the model with a new config, without requiring
+        a reloading of data or reinitialization of the instance
+
+        This is used for performance in the optimizer
+        '''
+        ## update values ##
+        for k,v in new_config.items():
+            self.config[k] = v
+        ## reinit class props to ensure clean dataset ##
+        self.current_file = self.data.current_file[
+            self.data.current_file['season'] >= self.first_season
+        ].copy()
+        self.current_elos = self.init_elos()
+        self.yearly_elos = {}
+        self.reversion_records = []
+        self.elo_records = []
+        self.updated_file = None
+
 

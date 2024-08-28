@@ -1,7 +1,10 @@
 import pandas as pd
 import numpy
 
-from ..Utilities import brier_score, grade_bet_vector, grade_su_vector
+from ..Utilities import (
+    brier_score, grade_bet_vector, grade_su_vector,
+    market_correl, adj_brier
+)
 
 class NfeloGraderModel:
     '''
@@ -65,6 +68,12 @@ class NfeloGraderModel:
             self.model_line, self.result
         )
     
+    def add_adj_brier(self):
+        '''
+        Brier, adjusted for similarity to market -- values being right
+        and different
+        '''
+    
     def merge_with(self, df):
         '''
         Adds a filtered version of itself to a target data frame
@@ -89,12 +98,20 @@ class NfeloGraderModel:
         return {
             'model_name' : self.model_name,
             'brier' : self.df['{0}_brier'.format(self.model_name)].sum(),
+            'brier_per_game' : self.df['{0}_brier'.format(self.model_name)].mean(),
             'su' : self.df['{0}_su'.format(self.model_name)].mean(),
             'ats' : self.df['{0}_ats'.format(self.model_name)].mean(),
             'ats_be' : self.df['{0}_ats_be'.format(self.model_name)].mean(),
             'ats_be_play_pct' : (
                 self.df['{0}_ats_be'.format(self.model_name)].count() /
                 self.df['{0}_ats'.format(self.model_name)].fillna(0).count()
+            ),
+            'market_correl' : market_correl(
+                self.model_line, self.market_line
+            ),
+            'brier_adj' : adj_brier(
+                self.df['{0}_brier'.format(self.model_name)].sum(),
+                market_correl(self.model_line, self.market_line)
             )
         }
 
