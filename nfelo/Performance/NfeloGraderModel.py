@@ -3,7 +3,7 @@ import numpy
 
 from ..Utilities import (
     brier_score, grade_bet_vector, grade_su_vector,
-    market_correl, adj_brier
+    market_correl, adj_brier, grade_se_vector
 )
 
 class NfeloGraderModel:
@@ -26,6 +26,7 @@ class NfeloGraderModel:
         self.away_ev = None if away_ev_col is None else self.df[away_ev_col]
         ## add scores ##
         self.add_brier()
+        self.add_line()
         self.add_se()
         self.add_ats()
         self.add_su()
@@ -39,6 +40,12 @@ class NfeloGraderModel:
             self.win_prob, self.result
         )
     
+    def add_line(self):
+        '''
+        Adds the model line
+        '''
+        self.df['{0}_home_line'.format(self.model_name)] = self.model_line
+
     def add_se(self):
         '''
         Adds the squared error of the model 
@@ -68,12 +75,6 @@ class NfeloGraderModel:
             self.model_line, self.result
         )
     
-    def add_adj_brier(self):
-        '''
-        Brier, adjusted for similarity to market -- values being right
-        and different
-        '''
-    
     def merge_with(self, df):
         '''
         Adds a filtered version of itself to a target data frame
@@ -81,7 +82,7 @@ class NfeloGraderModel:
         df = pd.merge(
             df,
             self.df[[
-                'game_id', '{0}_brier'.format(self.model_name),
+                'game_id', '{0}_home_line'.format(self.model_name), '{0}_brier'.format(self.model_name),
                 '{0}_se'.format(self.model_name), '{0}_ats'.format(self.model_name),
                 '{0}_ats_be'.format(self.model_name),'{0}_su'.format(self.model_name)
             ]],
@@ -97,6 +98,7 @@ class NfeloGraderModel:
         '''
         return {
             'model_name' : self.model_name,
+            'home_line' : self.model_line,
             'brier' : self.df['{0}_brier'.format(self.model_name)].sum(),
             'brier_per_game' : self.df['{0}_brier'.format(self.model_name)].mean(),
             'su' : self.df['{0}_su'.format(self.model_name)].mean(),
@@ -112,7 +114,8 @@ class NfeloGraderModel:
             'brier_adj' : adj_brier(
                 self.df['{0}_brier'.format(self.model_name)].sum(),
                 market_correl(self.model_line, self.market_line)
-            )
+            ),
+            'se' : self.df['{0}_se'.format(self.model_name)].mean()
         }
 
     def print_output(self):

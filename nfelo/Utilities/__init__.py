@@ -9,3 +9,4 @@ from .scoring_brier import brier_score, adj_brier
 from .scoring_spread import grade_bet_vector
 from .scoring_su import grade_su_vector
 from .scoring_market_correl import market_correl
+from .scoring_se import grade_se_vector

@@ -17,4 +17,4 @@ from .models.calculate_spreads import calculate_spreads
 from .models.calculate_wt_ratings import update_wt_ratings
 
 from .nfelo import update_nfelo
-from .nfelo import optimize_nfelo_core, optimize_nfelo_base, optimize_nfelo_mr,optimize_nfelo_ats,optimize_all
+from .nfelo import optimize_nfelo_core, optimize_nfelo_base, optimize_nfelo_mr,optimize_nfelo_ats,optimize_all, optimize_base_with_k

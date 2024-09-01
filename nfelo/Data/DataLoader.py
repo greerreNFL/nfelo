@@ -19,9 +19,9 @@ class DataLoader:
         print('Loading data...')
         self.last_completed_season, self.last_completed_week = dcm.get_season_state()
         self.db = dcm.load([
-            'pbp', 'games', 'rosters', 'logos','participants', ## fastr ##
+            'games', 'rosters', 'logos', ## fastr ##
             'wepa', 'wt_ratings', 'hfa', 'qbelo', ## nfelo models
-            'filmmargins', 'qbr', 'market_data' ## other data
+            'filmmargins', 'market_data' ## other data
         ])
         self.dvoa_projections = pd.read_csv(
             '{0}/dvoa_projections.csv'.format(self.intermediate_data_loc),
@@ -63,6 +63,13 @@ class DataLoader:
             'under_price_last' : 'under_price_close',
             'over_price_last' : 'over_price_close',
         })
+        ## fill missing closes ##
+        if len(market_data[pd.isnull(market_data['home_line_close'])]) > 0:
+            print('     Warning -- {0} games were missing a spread'.format(
+                len(market_data[pd.isnull(market_data['home_line_close'])])
+            ))
+            print('                Filling with 0...')
+        market_data['home_line_close'] = market_data['home_line_close'].fillna(0)
         ## fill missing opens ##
         market_data['home_line_open'] = market_data['home_line_open'].fillna(
             market_data['home_line_close']
@@ -114,7 +121,7 @@ class DataLoader:
         games = self.db['games'][[
             'game_id','game_type','season','week',
             'home_team','away_team','home_score','away_score',
-            'gameday', 'weekday' ,'stadium','stadium_id',
+            'gameday', 'weekday' ,'stadium','stadium_id', 'old_game_id',
         ]].rename(columns={
             'gameday' : 'game_date',
             'weekday' : 'game_day'
@@ -239,12 +246,16 @@ class DataLoader:
         games = pd.merge(
             games,
             self.db['wepa'][[
-                'game_id', 'team', 'wepa', 'd_wepa', 'wepa_net'
+                'game_id', 'team', 'wepa', 'd_wepa', 'wepa_net',
+                'epa', 'epa_against', 'epa_net'
             ]].rename(columns={
                 'team' : 'home_team',
                 'wepa' : 'home_offensive_wepa',
                 'd_wepa' : 'home_defensive_wepa',
-                'wepa_net' : 'home_net_wepa'
+                'wepa_net' : 'home_net_wepa',
+                'epa' : 'home_offensive_epa',
+                'epa_against' : 'home_defensive_epa',
+                'epa_net' : 'home_net_epa'
             }),
             on=['game_id', 'home_team'],
             how='left'
@@ -253,12 +264,16 @@ class DataLoader:
         games = pd.merge(
             games,
             self.db['wepa'][[
-                'game_id', 'team', 'wepa', 'd_wepa', 'wepa_net'
+                'game_id', 'team', 'wepa', 'd_wepa', 'wepa_net',
+                'epa', 'epa_against', 'epa_net'
             ]].rename(columns={
                 'team' : 'away_team',
                 'wepa' : 'away_offensive_wepa',
                 'd_wepa' : 'away_defensive_wepa',
-                'wepa_net' : 'away_net_wepa'
+                'wepa_net' : 'away_net_wepa',
+                'epa' : 'away_offensive_epa',
+                'epa_against' : 'away_defensive_epa',
+                'epa_net' : 'away_net_epa'
             }),
             on=['game_id', 'away_team'],
             how='left'

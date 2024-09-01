@@ -77,7 +77,7 @@ class NfeloGrader:
     }
 
     def __init__(self, df:pd.DataFrame):
-        self.df = df
+        self.df = df.copy()
         self.graded_games = df[['game_id', 'season', 'week']].copy()
         self.graded_records = []
         self.grade_models()

@@ -1,9 +1,11 @@
+import pandas as pd
 import pathlib
 import json
 
 from .Data import DataLoader
 from .Model import Nfelo
 from .Performance import NfeloGrader
+from .Formatting import NfeloFormatter
 
 def update_nfelo():
     '''
@@ -29,5 +31,8 @@ def update_nfelo():
     )
     ## grade #
     graded = NfeloGrader(nfelo.updated_file)
-    graded.print_scores()
-    graded.save_scores()
+    ## format ##
+    nfelo.project_spreads()
+    formatting = NfeloFormatter(
+        data=data, model=nfelo, graded=graded
+    )

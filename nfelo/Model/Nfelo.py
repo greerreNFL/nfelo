@@ -29,6 +29,7 @@ class Nfelo:
         self.reversion_records = []
         self.elo_records = []
         self.updated_file = None
+        self.projections = None
     
     def init_elos(self):
         '''
@@ -105,6 +106,8 @@ class Nfelo:
                     'wt_elo' : 1505 + 24.8 * row['{0}_wt_rating'.format(team_type)],
                     'new_elo' : row['starting_nfelo_{0}'.format(team_type)]
                 })
+        ## save an unadjusted elo dif ##
+        row['nfelo_dif_pre_adjustment'] = row['starting_nfelo_home'] - row['starting_nfelo_away']
         ## create initial elo dif with game context ##
         initial_elo_dif = (
             ## elo dif #
@@ -116,6 +119,11 @@ class Nfelo:
                 row['home_538_qb_adj'] - row['away_538_qb_adj']
             )
         )
+        ## save some output for down stream pipes ##
+        row['home_net_qb_mod'] = self.config['qb_weight'] * (
+            row['home_538_qb_adj'] - row['away_538_qb_adj']
+        )
+        row['home_net_bye_mod'] = row['home_bye_mod'] - row['away_bye_mod']
         ## if applicable, gross up for playoffs ##
         if row['is_playoffs']:
             initial_elo_dif = initial_elo_dif * (1+self.config['playoff_boost'])
@@ -128,6 +136,7 @@ class Nfelo:
         row['nfelo_home_line_base'] = probability_to_spread(
             row['nfelo_home_probability_base']
         )
+        row['nfelo_spread_delta'] = row['nfelo_home_line_base'] - row['home_line_open']
         ## calc regressions ##
         mr_regression_open = regress_to_market(
             ## elo difs and lines ##
@@ -183,8 +192,13 @@ class Nfelo:
         ) = calc_cover_probs(
             row['nfelo_home_line_close'], row['home_line_close']
         )
+        ## add aways for down stream pipes ##
+        row['away_loss_prob_close'] = row['home_cover_prob_close']
+        row['away_push_prob_close'] = row['home_push_prob_close']
+        row['away_cover_prob_close'] = row['home_loss_prob_close']
         row['home_close_ev'] = (row['home_cover_prob_close'] - 1.1 * row['home_loss_prob_close']) / 1.1
         row['away_close_ev'] = (row['home_loss_prob_close'] - 1.1 * row['home_cover_prob_close']) / 1.1
+        ## save some more down stream datapoints ##
         ## return the row ##
         return row
     
@@ -243,6 +257,7 @@ class Nfelo:
         self.current_elos[ht]['season'] = row['season']
         self.current_elos[ht]['week'] = row['week']
         self.current_elos[ht]['game_id'] = row['game_id']
+        self.current_elos[ht]['opponent'] = row['away_team']
         self.current_elos[ht]['starting_nfelo'] = row['starting_nfelo_home']
         self.current_elos[ht]['ending_nfelo'] = row['ending_nfelo_home']
         ## reset rolling info ##
@@ -267,6 +282,7 @@ class Nfelo:
         self.current_elos[at]['season'] = row['season']
         self.current_elos[at]['week'] = row['week']
         self.current_elos[at]['game_id'] = row['game_id']
+        self.current_elos[ht]['opponent'] = row['home_team']
         self.current_elos[at]['starting_nfelo'] = row['starting_nfelo_away']
         self.current_elos[at]['ending_nfelo'] = row['ending_nfelo_away']
         ## reset rolling info ##
@@ -287,8 +303,8 @@ class Nfelo:
              abs(row['se_market']) * se_alpha
         )
         ## save team records ##
-        self.elo_records.append(self.current_elos[ht])
-        self.elo_records.append(self.current_elos[at])
+        self.elo_records.append(self.current_elos[ht].copy())
+        self.elo_records.append(self.current_elos[at].copy())
         ## if it's week 17, append elos to yearly elos for SoS normalization ##
         if row['week'] == 17:
             ## init if needed ##
@@ -356,4 +372,40 @@ class Nfelo:
         self.elo_records = []
         self.updated_file = None
 
+    def project_week(self, unplayed_df):
+        '''
+        Projects a week of unplayed games based on the current state and status of the model.
+        There are currently no checks that the model is updated through the necessary date to make the
+        projection
+        '''
+        ## project games ##
+        projected_df = unplayed_df.apply(self.project_game, axis=1)
+        ## return ##
+        return projected_df
+    
+    def project_spreads(self):
+        '''
+        Projects the next unplayed week 
+        '''
+        ## get unplayed weeks ##
+        unplayed = self.data.current_file[
+            (self.data.current_file['season'] >= self.first_season) &
+            (pd.isnull(self.data.current_file['home_margin']))
+        ].groupby(['season', 'week']).head(1)
+        ## check that there are games ##
+        if len(unplayed) == 0:
+            print('Warning -- No unplayed week to project!')
+            return
+        ## get just the current unplayed ##
+        current_unplayed = self.data.current_file[
+            (self.data.current_file['week'] == unplayed.iloc[0]['week']) &
+            (self.data.current_file['season'] == unplayed.iloc[0]['season'])
+        ].copy()
+        ## apply nfelo ##
+        print('Projecting Week {0}, {1}'.format(
+            unplayed.iloc[0]['week'],
+            unplayed.iloc[0]['season']
+        ))
+        self.projections = self.project_week(current_unplayed)
+        
 

@@ -18,19 +18,19 @@ class NfeloOptimizer():
         ## format is ##
         ## 'feature' : {'best guess', 'min allowed', 'max_allowed}
         ## core Elo params ##
-        'k' : {'bg':13.5, 'min':5, 'max':20},
+        'k' : {'bg':13.25, 'min':5, 'max':20},
         'z' : {'bg':400, 'min':200, 'max':600},
         'b' : {'bg':6.75, 'min':3, 'max':10},
         ## off season regression ##
-        'reversion' : {'bg':0.3, 'min':.15, 'max':1},
+        'reversion' : {'bg':0.15, 'min':0.0, 'max':1.0},
         'dvoa_weight' : {'bg':0.35, 'min':0.15, 'max':0.5},
-        'wt_ratings_weight' : {'bg':0.35, 'min':0.15, 'max':0.5},
+        'wt_ratings_weight' : {'bg':0.15, 'min':0.05, 'max':0.5},
         ## score assessment ##
         'margin_weight' : {'bg':0.6, 'min':0.1, 'max':1.0},
         'pff_weight' : {'bg':0.22, 'min':0.1, 'max':1.0},
         'wepa_weight' : {'bg':0.18, 'min':0.1, 'max':1.0},
         ## shift modifiers ##
-        'market_resist_factor' : {'bg':2.5, 'min':1.25, 'max':10},
+        'market_resist_factor' : {'bg':1.5, 'min':1.15, 'max':10},
         ## market reversions ##
         'market_regression' : {'bg':.8, 'min':0, 'max':.9},
         'se_span' : {'bg':4, 'min':2, 'max':16},
@@ -75,6 +75,7 @@ class NfeloOptimizer():
             ## model ##
             nfelo_model, features, objective,
             ## optimizer params ##
+            bg_overrides={},
             best_guesses=None, bound=(0,1), 
             tol=0.000001, step=0.00001, method='SLSQP',
             basin_hop=False
@@ -85,12 +86,19 @@ class NfeloOptimizer():
         self.features = features
         self.objective = objective
         ## opti params ##
+        self.bg_overrides = bg_overrides
         self.best_guesses = self.gen_best_guesses()
         self.bounds = tuple((0, 1) for _ in range(len(features))) ## all features are normalized
         self.tol = tol
         self.step = step
         self.method = method
         self.basin_hop = basin_hop
+        ## in optimization params ##
+        ## Basin hopping can cause very long runs that may want to be exited early. THese
+        ## allow the optimizer to output data as the model runs ##
+        self.total_runs = 0
+        self.best_val = 0
+        self.output_mid = True
         ## post optimization vars ##
         self.opti_vals = []
         self.opti_seconds = 0
@@ -133,8 +141,15 @@ class NfeloOptimizer():
         '''
         best_guesses = []
         for feature in self.features:
-            feature_info = self.available_features[feature]
-            best_guess = feature_info['bg']
+            if feature in self.bg_overrides:
+                ## override if passed ##
+                best_guess = self.bg_overrides[feature]
+                print('     Overriding {0} with {1}'.format(feature, best_guess))
+            else:
+                ## otherwise get from config ##
+                feature_info = self.available_features[feature]
+                best_guess = feature_info['bg']
+            ## normalize ##
             normalized_best_guess = self.normalize_value(best_guess, feature)
             best_guesses.append(normalized_best_guess)
         return best_guesses
@@ -202,6 +217,59 @@ class NfeloOptimizer():
         ## return ##
         return grade
     
+    def mid_opti_output(self, obj):
+        '''
+        Saves a stream of optimization results while the optimizer is running if conditions are met
+        This is used only in conjunction with Basin Hopping, which is a global optimizer that takes
+        orders of magnitude longer to converge
+
+        In the event that Basin Hopping needs to be stopped, this ensures output for the top models
+        is preserved
+        '''
+        ## see if conditions are met ##
+        ## update objective function info ##
+        if self.total_runs == 1:
+            ## if first run, set the obj to the output ##
+            self.best_val = obj
+        ## see if its a new best ##
+        is_new_best = True if obj < self.best_val else False
+        ## update the value if needed ##
+        if is_new_best:
+            self.best_val = obj
+        ## full conditions for output ##
+        if is_new_best and self.total_runs > 15:
+            ## clear optimization rec ##
+            self.opti_rec = {}
+            ## grade the most recently run model ##
+            graded = NfeloGrader(self.nfelo_model.updated_file)
+            ## populate rec ##
+            self.opti_rec['optimization_type'] = self.opti_tag
+            self.opti_rec['optimization_method'] = self.method
+            self.opti_rec['optimization_tol'] = self.tol
+            self.opti_rec['optimization_step'] = self.step
+            self.opti_rec['opti_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
+            self.opti_rec['objective'] = self.objective
+            self.opti_rec['achieved_value'] = obj
+            ## add performance data ##
+            self.opti_rec['brier'] = self.metric_extraction(graded, self.model_name, 'brier')
+            self.opti_rec['brier_per_game'] = self.metric_extraction(graded, self.model_name, 'brier_per_game')
+            self.opti_rec['brier_adj'] = self.metric_extraction(graded, self.model_name, 'brier_adj')
+            self.opti_rec['su'] = self.metric_extraction(graded, self.model_name, 'su')
+            self.opti_rec['ats'] = self.metric_extraction(graded, self.model_name, 'ats')
+            self.opti_rec['ats_be'] = self.metric_extraction(graded, self.model_name, 'ats_be')
+            self.opti_rec['ats_be_play_pct'] = self.metric_extraction(graded, self.model_name, 'ats_be_play_pct')
+            self.opti_rec['market_correl'] = self.metric_extraction(graded, self.model_name, 'market_correl')
+            ## final model specific metrics ##
+            self.opti_rec['brier_nfelo_close'] = self.metric_extraction(graded, 'nfelo_close', 'brier')
+            self.opti_rec['ats_nfelo_close'] = self.metric_extraction(graded, 'nfelo_close', 'ats')
+            self.opti_rec['ats_be_nfelo_close'] = self.metric_extraction(graded, 'nfelo_close', 'ats_be')
+            ## populate features ##
+            for feature, v in self.available_features.items():
+                self.opti_rec[feature] = self.nfelo_model.config[feature]
+            ## save ##
+            self.save_to_logs('basin_hop_bests')
+
+    
     def obj_func(self, x):
         '''
         Objective function for the optimizer. This will:
@@ -218,7 +286,14 @@ class NfeloOptimizer():
         grader = NfeloGrader(self.nfelo_model.updated_file)
         ## get the correct metric and make it minimizable
         obj = self.parse_grade(grader)
-        print(obj)
+        ## update run count ##
+        self.total_runs += 1
+        print('Run number {0} - {1}'.format(
+            self.total_runs, obj
+        ))
+        ## handle in run output if basin hopping ##
+        if self.basin_hop:
+            self.mid_opti_output(obj)
         ## return ##
         return obj
 
@@ -276,6 +351,9 @@ class NfeloOptimizer():
         ## construct the record ##
         self.opti_rec = {}
         self.opti_rec['optimization_type'] = self.opti_tag
+        self.opti_rec['optimization_method'] = self.method
+        self.opti_rec['optimization_tol'] = self.tol
+        self.opti_rec['optimization_step'] = self.step
         self.opti_rec['opti_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
         self.opti_rec['run_time'] = self.opti_seconds
         self.opti_rec['iterations'] = solution.nit
@@ -299,12 +377,13 @@ class NfeloOptimizer():
         for feature, v in self.available_features.items():
             self.opti_rec[feature] = self.nfelo_model.config[feature]
     
-    def save_to_logs(self):
+    def save_to_logs(self, file_name='opti_logs'):
         '''
         Saves the optimization record to the logs
         '''
-        log_loc = '{0}/opti_logs.csv'.format(
-            pathlib.Path(__file__).parent.resolve()
+        log_loc = '{0}/{1}.csv'.format(
+            pathlib.Path(__file__).parent.resolve(),
+            file_name
         )
         ## load ##
         try:
