@@ -123,54 +123,6 @@ def optimize_nfelo_mr(pass_config=None):
     optimizer.save_to_logs()
 
 
-def optimize_nfelo_ats(pass_config=None):
-    '''
-    Optimize the market regression component of the nfelo model
-    '''
-    ## load config ##
-    config_loc = '{0}/config.json'.format(
-        pathlib.Path(__file__).parent.parent.resolve()
-    )
-    ## handle overrides from base model
-    with open(config_loc, 'r') as fp:
-        config = json.load(fp)
-    if pass_config is None:
-        ## override with fixed values #
-        ## this is temp for development ##
-        config['models']['nfelo']['nfelo_config']['k'] = 9.114
-        config['models']['nfelo']['nfelo_config']['z'] = 401.62
-        config['models']['nfelo']['nfelo_config']['b'] = 9.999
-        config['models']['nfelo']['nfelo_config']['reversion'] = 0.001 
-        config['models']['nfelo']['nfelo_config']['dvoa_weight'] = 0.474
-        config['models']['nfelo']['nfelo_config']['wt_ratings_weight'] = 0.05
-        config['models']['nfelo']['nfelo_config']['margin_weight'] = 0.6633
-        config['models']['nfelo']['nfelo_config']['pff_weight'] = 0.1000
-        config['models']['nfelo']['nfelo_config']['wepa_weight'] = 0.13529
-        config['models']['nfelo']['nfelo_config']['market_resist_factor'] = 1.5039
-    else:
-        ## repack the config as it comes from an upacked version from nfelo ##
-        for k,v in pass_config.items():
-            config['models']['nfelo']['nfelo_config'][k] = v
-    ## load data ##
-    data = DataLoader()
-    nfelo = Nfelo(
-        data=data,
-        config=config['models']['nfelo']
-    )
-    ## optmize ##
-    optimizer = NfeloOptimizer(
-        'nfelo-ats',
-        nfelo,
-        [
-            'market_regression', 'se_span', 'rmse_base',
-            'spread_delta_base', 'hook_certainty',
-            'long_line_inflator', 'min_mr'
-        ],
-        'nfelo_brier_close_ats'
-    )
-    optimizer.optimize()
-    optimizer.save_to_logs()
-
 def optimize_all():
     '''
     Generates an optimziation for for all 4 types and passes

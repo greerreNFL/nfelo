@@ -6,6 +6,7 @@ from ..Data import DataLoader
 from ..Model import Nfelo
 from ..Performance import NfeloGrader
 from ..Analytics import NfeloAnalytics
+from ..Utilities import bet_size
 
 class NfeloFormatter:
     '''
@@ -71,7 +72,6 @@ class NfeloFormatter:
             '538_ats' : '538_close_ats',
             '538_open_ats_be' : '538_open_ats_break_even',
             'qbelo_open_ats_be' : 'qbelo_open_ats_break_even',
-            'nfelo_open_ats_be' : 'nfelo_open_ats_break_even',
             '538_ats_be' : '538_close_ats_break_even',
             'qbelo_ats_be' : 'qbelo_close_ats_break_even',
             'market_home_line' : 'home_line_close',
@@ -188,7 +188,7 @@ class NfeloFormatter:
         wt[[
             'team', 'season', 'wt_rating', 'wt_rating_elo',
             'sos', 'line', 'over_odds', 'under_odds',
-            'line_adj', 'team_nick', 'team_logo_espn',
+            'line_adj', 'team_nick', 'team_color', 'team_color2', 'team_logo_espn',
             'over_probability', 'under_probability', 'hold'
         ]].to_csv(
             '{0}/wt_ratings.csv'.format(self.output_loc)
@@ -206,8 +206,8 @@ class NfeloFormatter:
             'game_id', 'season', 'week', 'away_team', 'home_team',
             'home_line_open', 'home_line_close', 'nfelo_home_line_close', 'nfelo_home_line_base', 'nfelo_spread_delta',
             'nfelo_home_probability_close', 'starting_nfelo_home', 'starting_nfelo_away', 'nfelo_dif_pre_adjustment', 'nfelo_dif_base',
-            'market_regression_factor_close', 'nfelo_dif_close', 'market_elo_dif_close', 'hfa_base', 'home_net_bye_mod',
-            'div_game_mod', 'dif_surface_mod', 'home_time_advantage_mod', 'hfa_adj', 'home_net_qb_mod',
+            'market_regression_factor_close', 'nfelo_dif_close', 'market_elo_dif_close', 'hfa_base_mod', 'home_net_bye_mod',
+            'div_game_mod', 'dif_surface_mod', 'home_time_advantage_mod', 'hfa_mod', 'home_net_qb_mod',
             'home_538_qb_adj', 'away_538_qb_adj', 'home_538_qb', 'away_538_qb', 'away_loss_prob_close',
             'away_push_prob_close', 'away_cover_prob_close', 'away_close_ev', 'home_loss_prob_close', 'home_push_prob_close',
             'home_cover_prob_close', 'home_close_ev', 'old_game_id', 'game_date', 'game_day',
@@ -223,11 +223,11 @@ class NfeloFormatter:
             'market_regression_factor_close' : 'market_regression_factor',
             'nfelo_dif_close' : 'regressed_dif',
             'market_elo_dif_close' : 'market_implied_elo_dif',
-            'hfa_base' : 'base_hfa',
+            'hfa_base_mod' : 'base_hfa',
             'div_game_mod' : 'div_mod',
             'dif_surface_mod' : 'surface_mod',
             'home_time_advantage_mod' : 'time_mod',
-            'hfa_adj' : 'home_net_HFA_mod',
+            'hfa_mod' : 'home_net_HFA_mod',
             'away_loss_prob_close' : 'away_loss_prob',
             'away_push_prob_close' : 'away_push_prob',
             'away_cover_prob_close' : 'away_cover_prob',
@@ -243,6 +243,11 @@ class NfeloFormatter:
         proj['sort'] = proj[['home_ev', 'away_ev']].max(axis=1)
         ## sort ##
         proj = proj.sort_values(by=['sort'],ascending=[False]).reset_index(drop=True)
+        ## add bet size ##
+        proj['bet_size'] = bet_size(
+            proj['home_cover_prob'],
+            proj['home_loss_prob']
+        )
         ## save ##
         proj.to_csv(
             ## change to outptu folder once confirmed the formatter is working correctly ##
@@ -267,6 +272,58 @@ class NfeloFormatter:
             ## change to outptu folder once confirmed the formatter is working correctly ##
             '{0}/historic_projected_spreads.csv'.format(self.external_folder)
         )
+        ## create a flat file of current elos ##
+        flat = pd.concat([
+            proj[['season', 'week', 'home_team', 'home_nfelo_elo', 'home_538_qb_adj']].rename(columns={
+                'home_team' : 'team',
+                'home_nfelo_elo' : 'nfelo_base',
+                'home_538_qb_adj' : 'qb_adj'
+            }),
+            proj[['season', 'week', 'away_team', 'away_nfelo_elo', 'away_538_qb_adj']].rename(columns={
+                'away_team' : 'team',
+                'away_nfelo_elo' : 'nfelo_base',
+                'away_538_qb_adj' : 'qb_adj'
+            })
+        ])
+        ## calc the all in nfelo ##
+        flat['nfelo'] = flat['nfelo_base'] + flat['qb_adj']
+        ## convert to spread ##
+        flat['pts_vs_avg'] = (flat['nfelo'] - flat['nfelo'].median()) / 25
+        ## save ##
+        try:
+            existing = pd.read_csv(
+                '{0}/elo_snapshot.csv'.format(self.external_folder),
+                index_col=0
+            )
+            ## merge ##
+            existing = existing[~numpy.isin(
+                existing['team'],
+                flat['team'].unique().tolist()
+            )].copy()
+            if len(existing) == 0:
+                flat.sort_values(
+                    by=['nfelo'],
+                    ascending=[False]
+                ).reset_index(drop=True).to_csv(
+                    '{0}/elo_snapshot.csv'.format(self.external_folder)
+                )
+            else:
+                pd.concat([
+                    flat,existing
+                ]).sort_values(
+                    by=['nfelo'],
+                    ascending=[False]
+                ).reset_index(drop=True).to_csv(
+                    '{0}/elo_snapshot.csv'.format(self.external_folder)
+                )
+        except:
+            flat.sort_values(
+                by=['nfelo'],
+                ascending=[False]
+            ).reset_index(drop=True).to_csv(
+                '{0}/elo_snapshot.csv'.format(self.external_folder)
+            )
+
 
     
     def gen_most_recent_elo_file(self):

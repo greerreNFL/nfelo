@@ -5,7 +5,8 @@ from .merge_check import merge_check
 from .offseason_regression import offseason_regression
 from .market_regression import regress_to_market
 from .elo_shift import calc_shift, calc_weighted_shift
-from .scoring_brier import brier_score, adj_brier
+from .bet_size import kelly_bet_size, bet_size
+from .scoring_brier import brier_score, adj_brier, ats_adj_brier
 from .scoring_spread import grade_bet_vector
 from .scoring_su import grade_su_vector
 from .scoring_market_correl import market_correl

@@ -57,7 +57,7 @@ class NfeloOptimizer():
         },
         'nfelo_brier_close' : {
             'model' : 'nfelo_close',
-            'metric' : 'brier_adj',
+            'metric' : 'brier_ats_adj',
             'scale' : 10000,
             'direction' : 'pos'
         },

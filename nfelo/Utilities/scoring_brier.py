@@ -67,3 +67,35 @@ def adj_brier(
         brier *
         (1+(1-corr**2))
     )
+
+def ats_adj_brier(
+    brier:float,
+    ats_be:float,
+    ats_play_pct:float
+
+):
+    '''
+    Adjusts the brier score for ats performance. Adjusting brier for correlation
+    leads to sub optimal results when handling market regression since so much correlation
+    can be removed by not regressing. This lowers both underlying brier and ATS
+
+    Instead, adjust brier by net ATS wins per game
+
+    Parameters:
+    * brier: the models brier score
+    * ats_be: the model's performance against the spread on BE plays
+    * ats_play_pct: the model's percent of games that are BE
+
+    Returns:
+    * ats_adj_brier: brier, rewarded for better ats
+    '''
+    return (
+        brier *
+        (
+            1 +
+            5 * (
+                ats_play_pct *
+                (ats_be - 0.53)
+            )
+        )
+    )

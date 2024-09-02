@@ -3,7 +3,8 @@ import numpy
 
 from ..Utilities import (
     brier_score, grade_bet_vector, grade_su_vector,
-    market_correl, adj_brier, grade_se_vector
+    market_correl, adj_brier, grade_se_vector,
+    ats_adj_brier
 )
 
 class NfeloGraderModel:
@@ -114,6 +115,14 @@ class NfeloGraderModel:
             'brier_adj' : adj_brier(
                 self.df['{0}_brier'.format(self.model_name)].sum(),
                 market_correl(self.model_line, self.market_line)
+            ),
+            'brier_ats_adj' : ats_adj_brier(
+                self.df['{0}_brier'.format(self.model_name)].sum(),
+                self.df['{0}_ats_be'.format(self.model_name)].mean(),
+                (
+                    self.df['{0}_ats_be'.format(self.model_name)].count() /
+                    self.df['{0}_ats'.format(self.model_name)].fillna(0).count()
+                )
             ),
             'se' : self.df['{0}_se'.format(self.model_name)].mean()
         }

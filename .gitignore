@@ -4,5 +4,7 @@ __pycache__/
 !dvoa_projections.csv
 !historic_projected_spreads.csv
 !probability_spread_multiples.csv
+!elo_snapshot.csv
+!scored_individual_games.csv
 !weights.csv
 !temps_by_week.csv

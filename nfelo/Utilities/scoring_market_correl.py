@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy
 from .base import is_series
 
 def market_correl(
