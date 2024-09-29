@@ -68,6 +68,9 @@ class DataLoader:
             print('     Warning -- {0} games were missing a spread'.format(
                 len(market_data[pd.isnull(market_data['home_line_close'])])
             ))
+            print('                /n'.join(
+                market_data[pd.isnull(market_data['home_line_close'])]['game_id'].tolist()
+            ))
             print('                Filling with 0...')
         market_data['home_line_close'] = market_data['home_line_close'].fillna(0)
         ## fill missing opens ##

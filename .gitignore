@@ -8,3 +8,4 @@ __pycache__/
 !scored_individual_games.csv
 !weights.csv
 !temps_by_week.csv
+!prediction_tracker.csv

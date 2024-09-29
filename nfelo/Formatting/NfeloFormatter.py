@@ -253,6 +253,40 @@ class NfeloFormatter:
             ## change to outptu folder once confirmed the formatter is working correctly ##
             '{0}/projected_spreads.csv'.format(self.external_folder)
         )
+        ## create a copy for prediction tracker ##
+        pt = proj[[
+            'home_team', 'away_team', 'home_closing_line_rounded_nfelo',
+            'home_probability_nfelo'
+        ]].rename(columns={
+            'home_closing_line_rounded_nfelo' : 'nfelo_projected_home_spread',
+            'home_probability_nfelo' : 'nfelo_projected_home_win_probability'
+        }).copy()
+        ## round ##
+        pt['nfelo_projected_home_win_probability'] = numpy.round(
+            pt['nfelo_projected_home_win_probability'], 3
+        )
+        ## swap formatting to us current names ##
+        pt_repl={'OAK':'LV'}
+        pt['home_team'] = pt['home_team'].replace(pt_repl)
+        pt['away_team'] = pt['away_team'].replace(pt_repl)
+        ## add winner ##
+        pt['projected_winner'] = numpy.where(
+            pt['nfelo_projected_home_win_probability'] >= .5,
+            pt['home_team'],
+            pt['away_team']
+        )
+        pt['projected_winner_probability'] = numpy.round(numpy.where(
+            pt['projected_winner'] == pt['home_team'],
+            pt['nfelo_projected_home_win_probability'],
+            1-pt['nfelo_projected_home_win_probability']
+        ),3)
+        pt = pt.sort_values(
+            by=['projected_winner_probability'], ascending=False
+        ).reset_index(drop=True)
+        pt.to_csv(
+            '{0}/prediction_tracker.csv'.format(self.external_folder),
+            index=False
+        )
         ## add to historics ##
         hist = pd.read_csv(
             '{0}/historic_projected_spreads.csv'.format(self.external_folder),
