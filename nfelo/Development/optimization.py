@@ -2,9 +2,9 @@ import pandas as pd
 import pathlib
 import json
 
-from .Data import DataLoader
-from .Model import Nfelo
-from .Optimizer import NfeloOptimizer
+from ..Data import DataLoader
+from ..Model import Nfelo
+from ..Optimizer import NfeloOptimizer
 
 def optimize_nfelo_core():
     '''
