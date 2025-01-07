@@ -1,7 +1,7 @@
 home_team,away_team,nfelo_projected_home_spread,nfelo_projected_home_win_probability,projected_winner,projected_winner_probability
-HOU,LAC,52.0,,LAC,
-BAL,PIT,52.0,,PIT,
-BUF,DEN,52.0,,DEN,
-PHI,GB,52.0,,GB,
-TB,WAS,52.0,,WAS,
-LAR,MIN,52.0,,MIN,
+BAL,PIT,-11.0,0.821,BAL,0.821
+BUF,DEN,-7.0,0.72,BUF,0.72
+PHI,GB,-4.5,0.661,PHI,0.661
+TB,WAS,-3.0,0.593,TB,0.593
+HOU,LAC,2.5,0.434,LAC,0.566
+LAR,MIN,1.5,0.464,MIN,0.536
