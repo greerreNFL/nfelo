@@ -35,6 +35,7 @@ class NfeloFormatter:
         self.gen_projections()
         self.gen_most_recent_elo_file()
         self.gen_cur_w_analytics()
+        self.gen_nfelo_games()
  
     def gen_rolling_hfa(self):
         '''
@@ -358,8 +359,6 @@ class NfeloFormatter:
                 '{0}/elo_snapshot.csv'.format(self.external_folder)
             )
 
-
-    
     def gen_most_recent_elo_file(self):
         '''
         Generates the most recent elo file
@@ -452,6 +451,86 @@ class NfeloFormatter:
         ## save ##
         df.to_csv(
             '{0}/current_file_with_analytics.csv'.format(
+                self.output_loc
+            )
+        )
+
+    def gen_nfelo_games(self):
+        '''
+        Generates the nfelo games file which is exposed view nfelodcm and powers
+        new site datapipelines
+        '''
+        ## get the extended updated file, which contains both played and unplayed games ##
+        self.model.extend_updated_file()
+        base = self.model.updated_file_ext[[
+            'game_id',
+            ## base nfelos ##
+            'starting_nfelo_home', 'starting_nfelo_away',
+            ## adjs ##
+            'hfa_mod', 'home_bye_mod', 'away_bye_mod', 'div_game_mod', 'dif_surface_mod',
+            'home_time_advantage_mod',
+            'home_538_qb_adj', 'away_538_qb_adj', 'home_net_qb_mod', 'home_net_bye_mod',
+            ## diffs ##
+            'nfelo_dif_base', 'nfelo_dif_open', 'nfelo_dif_close',
+            ## projections ##
+            'nfelo_home_line_open', 'nfelo_home_line_close',
+            'nfelo_home_probability_close', 'nfelo_home_probability_open',
+            ## cover probs ##
+            'home_cover_prob_close', 'home_push_prob_close', 'home_loss_prob_close',
+            'away_cover_prob_close', 'away_push_prob_close', 'away_loss_prob_close',
+            ## ev ##
+            'home_open_ev', 'away_open_ev',
+            'home_close_ev', 'away_close_ev'
+        ]].rename(columns={
+            'home_cover_prob_close' : 'nfelo_home_cover_prob_close',
+            'home_push_prob_close' : 'nfelo_home_push_prob_close',
+            'home_loss_prob_close' : 'nfelo_home_loss_prob_close',
+            'away_cover_prob_close' : 'nfelo_away_cover_prob_close',
+            'away_push_prob_close' : 'nfelo_away_push_prob_close',
+            'away_loss_prob_close' : 'nfelo_away_loss_prob_close',
+        }).copy()
+        ## market data ##
+        market = self.data.market_data[[
+            'game_id',
+            ## spreads ##
+            'home_line_open', 'home_line_open_price', 'away_line_open_price',
+            'home_line_close', 'home_line_close_price', 'away_line_close_price',
+            ## total ##
+            'total_line_open', 'under_price_open', 'over_price_open',
+            'total_line_close', 'under_price_close', 'over_price_close',
+            ## probability ##
+            'home_implied_win_probability_open', 'home_implied_win_probability_close',
+        ]].rename({
+            'home_line_open' : 'market_home_line_open',
+            'home_line_close' : 'market_home_line_close',
+            'total_line_open' : 'market_total_line_open',
+            'total_line_close' : 'market_total_line_close',
+            'home_implied_win_probability_open' : 'market_home_implied_win_probability_open',
+            'home_implied_win_probability_close' : 'market_home_implied_win_probability_close',
+        }).copy()
+        ## merge ##
+        df = pd.merge(
+            base,
+            market,
+            on=['game_id'],
+            how='left'
+        )
+        ## add hfa base ##
+        hfa = self.data.db['hfa'][[
+            'game_id', 'hfa_base'
+        ]].rename(columns={
+            'hfa_base' : 'hfa_base_mod'
+        }).copy()
+        hfa['hfa_base_mod'] = 25 * hfa['hfa_base_mod'] ## gross up to elo value
+        df = pd.merge(
+            df,
+            hfa,
+            on=['game_id'],
+            how='left'
+        )
+        ## save ##
+        df.to_csv(
+            '{0}/nfelo_games.csv'.format(
                 self.output_loc
             )
         )
