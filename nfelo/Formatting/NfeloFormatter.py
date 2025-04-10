@@ -528,9 +528,14 @@ class NfeloFormatter:
             on=['game_id'],
             how='left'
         )
+        ## round off fields to avoid long floats ##
+        for col in df.columns:
+            ## if col is a float, ensure no greater than 1000th percision ##
+            if df[col].dtype == 'float64':
+                df[col] = df[col].round(4)
         ## save ##
         df.to_csv(
             '{0}/nfelo_games.csv'.format(
-                self.output_loc
+                self.external_folder
             )
         )

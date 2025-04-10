@@ -27,7 +27,9 @@ def update_nfelo():
     nfelo.save_reversions()
     ## save some output ##
     nfelo.updated_file.to_csv(
-        '/opt/homebrew/lib/python3.11/site-packages/nfelo/nfelo/Data/Intermediate Data/current_file_w_nfelo.csv'
+        '{0}/Data/Intermediate Data/current_file_w_nfelo.csv'.format(
+            pathlib.Path(__file__).parent.resolve()
+        )
     )
     ## grade #
     graded = NfeloGrader(nfelo.updated_file)

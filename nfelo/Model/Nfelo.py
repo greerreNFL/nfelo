@@ -341,26 +341,6 @@ class Nfelo:
             (self.current_file['season'] < self.data.last_completed_season)
         ].copy()
         self.updated_file = played.apply(self.apply_nfelo, axis=1)
-
-    def extend_updated_file(self):
-        '''
-        extends the updated file (which only contains played games) to include projections for unplayed games
-        '''
-        ## get unplayed weeks ##
-        unplayed = self.data.current_file[~numpy.isin(
-            self.data.current_file['game_id'],
-            self.updated_file['game_id'].unique().tolist()
-        )].copy()
-        ## handle projection and merge if they exist ##
-        if len(unplayed) > 0:
-            ## project ##
-            projected = self.project_week(unplayed)
-            ## merge ##
-            self.updated_file_ext = pd.concat([self.updated_file, projected])
-        else:
-            self.updated_file_ext = self.updated_file.copy()
-        ## reset index that may get stacked with the merge ##
-        self.updated_file_ext.reset_index(drop=True, inplace=True)
     
     def save_reversions(self):
         '''
@@ -428,5 +408,31 @@ class Nfelo:
             unplayed.iloc[0]['season']
         ))
         self.projections = self.project_week(current_unplayed)
+
+    def extend_updated_file(self):
+        '''
+        extends the updated file (which only contains played games) to include projections for unplayed games
+        '''
+        ## get next unplayed week if it exists ##
+        ## get unplayed weeks ##
+        unplayed = self.data.current_file[
+            (self.data.current_file['season'] >= self.first_season) &
+            (pd.isnull(self.data.current_file['home_margin']))
+        ].groupby(['season', 'week']).head(1)
+        ## check that there are games ##
+        if len(unplayed) > 0:
+            ## get just the current unplayed ##
+            current_unplayed = self.data.current_file[
+                (self.data.current_file['week'] == unplayed.iloc[0]['week']) &
+                (self.data.current_file['season'] == unplayed.iloc[0]['season'])
+            ].copy()
+            ## project ##
+            projected = self.project_week(current_unplayed)
+            ## merge ##
+            self.updated_file_ext = pd.concat([self.updated_file, projected])
+        else:
+            self.updated_file_ext = self.updated_file.copy()
+        ## reset index that may get stacked with the merge ##
+        self.updated_file_ext.reset_index(drop=True, inplace=True)
         
 
