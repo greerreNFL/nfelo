@@ -7,7 +7,7 @@ from ..Data import DataLoader
 from ..Utilities import (
     offseason_regression, probability_to_spread, elo_to_prob,
     regress_to_market, prob_to_elo, calc_cover_probs,
-    calc_weighted_shift
+    calc_weighted_shift, calc_clv
 )
 
 class Nfelo:
@@ -199,6 +199,11 @@ class Nfelo:
         row['away_cover_prob_close'] = row['home_loss_prob_close']
         row['home_close_ev'] = (row['home_cover_prob_close'] - 1.1 * row['home_loss_prob_close']) / 1.1
         row['away_close_ev'] = (row['home_loss_prob_close'] - 1.1 * row['home_cover_prob_close']) / 1.1
+        ## calc clvs ##
+        row['home_clv_from_open'], row['away_clv_from_open'] = calc_clv(
+            original_home_spread=row['home_line_open'],
+            current_home_spread=row['home_line_close']
+        )
         ## save some more down stream datapoints ##
         ## return the row ##
         return row

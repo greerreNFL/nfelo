@@ -480,7 +480,9 @@ class NfeloFormatter:
             'away_cover_prob_close', 'away_push_prob_close', 'away_loss_prob_close',
             ## ev ##
             'home_open_ev', 'away_open_ev',
-            'home_close_ev', 'away_close_ev'
+            'home_close_ev', 'away_close_ev',
+            ## clv ##
+            'home_clv_from_open', 'away_clv_from_open'
         ]].rename(columns={
             'home_cover_prob_close' : 'nfelo_home_cover_prob_close',
             'home_push_prob_close' : 'nfelo_home_push_prob_close',
