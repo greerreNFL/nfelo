@@ -1,4 +1,4 @@
-from nfelo.Utilities.cover_probability import calc_cover_probs
+from .cover_probability import calc_cover_probs
 
 def calc_clv(original_home_spread:float, current_home_spread:float):
     '''
