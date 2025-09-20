@@ -2,8 +2,8 @@ home_team,away_team,nfelo_projected_home_spread,nfelo_projected_home_win_probabi
 BUF,MIA,-11.5,0.826,BUF,0.826
 CLE,GB,8.0,0.238,GB,0.762
 SEA,NO,-7.5,0.744,SEA,0.744
-NYG,KC,6.5,0.286,KC,0.714
 TB,NYJ,-6.5,0.71,TB,0.71
+NYG,KC,6.0,0.302,KC,0.698
 TEN,IND,4.5,0.334,IND,0.666
 BAL,DET,-4.5,0.661,BAL,0.661
 CAR,ATL,4.0,0.344,ATL,0.656
