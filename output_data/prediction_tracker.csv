@@ -1,3 +1,3 @@
 home_team,away_team,nfelo_projected_home_spread,nfelo_projected_home_win_probability,projected_winner,projected_winner_probability
-DEN,NE,52.0,,NE,
-SEA,LAR,52.0,,LAR,
+DEN,NE,3.5,0.384,NE,0.616
+SEA,LAR,-2.5,0.561,SEA,0.561
