@@ -101,6 +101,8 @@ def hook_adj(
     Returns:
     * hook_factor (float): the percent regress the model the market by 
     '''
+    if market_line != market_line:
+        return 1
     if market_line == round(market_line):
         return 1
     else:

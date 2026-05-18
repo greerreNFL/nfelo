@@ -25,5 +25,4 @@ This package is built and maintained by [@greerreNFL](https://twitter.com/greerr
 
 
 ## Version History
-* 4.00
-    * A complete rebuild of the nfelo package. The version history will now we regularly maintained.
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.

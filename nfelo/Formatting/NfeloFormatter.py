@@ -5,7 +5,6 @@ import pathlib
 from ..Data import DataLoader
 from ..Model import Nfelo
 from ..Performance import NfeloGrader
-from ..Analytics import NfeloAnalytics
 from ..Utilities import bet_size
 
 class NfeloFormatter:
@@ -24,9 +23,6 @@ class NfeloFormatter:
         self.external_folder = '{0}/output_data'.format(
             pathlib.Path(__file__).parent.parent.parent.resolve()
         )
-        ## init an NfeloAnalytics instance, which handled
-        ## loading, compiling and saving of the team and most_recent_team files
-        self.analytics = NfeloAnalytics(self.model)
         ## format data ##
         self.gen_rolling_hfa()
         self.gen_scored_games()

@@ -11,3 +11,6 @@ __pycache__/
 !temps_by_week.csv
 !prediction_tracker.csv
 !nfelo_games.csv
+
+.local
+.claude
