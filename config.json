@@ -2,14 +2,13 @@
   "models": {
     "nfelo": {
       "nfelo_config": {
-        "config_name": "nfelo_v4.00",
-        "model_desc": "complete rebuild",
+        "config_name": "nfelo_v4.02",
         "reg_weeks": 260,
         "level_weeks": 10,
-        "home_bye_week": 0.30,
-        "away_bye_week": -0.80,
+        "home_bye_week": 0.3,
+        "away_bye_week": -0.8,
         "dif_surface": 0.35,
-        "time_advantage": 0.20,
+        "time_advantage": 0.2,
         "hfa_div": -0.31,
         "hfa_non_div": 0.09,
         "reversion": 0.001,
@@ -26,17 +25,17 @@
         "market_weight": 0,
         "nfelo_span": 4,
         "market_regression": 0.9,
-        "se_span": 8.346,
-        "rmse_base": 2.993,
-        "spread_delta_base": 1.1,
+        "se_span": 14.4811,
+        "rmse_base": 5.4032,
+        "spread_delta_base": 1.1004,
         "key_num_discount": 0,
         "line_open_deflator": 2,
-        "long_line_inflator": 0.5355,
-        "hook_certainty": 0,
-        "min_mr": 0.1298,
+        "long_line_inflator": 0.3238,
+        "hook_certainty": -0.0021,
+        "min_mr": 0.4345,
         "playoff_boost": 0.1
       },
-      "begining_elo": {
+      "beginning_elo": {
         "ARI": 1550,
         "ATL": 1528,
         "BAL": 1614,

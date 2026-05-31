@@ -36,7 +36,7 @@ def optimize_nfelo_core():
     optimizer.optimize()
     optimizer.save_to_logs()
 
-def optimize_nfelo_base(return_config=False, basin_hop=False, bg_overrides={}):
+def optimize_nfelo_base(return_config=False, random_starts=False, bg_overrides={}):
     '''
     Optimizes the unregressed nfelo model for adj brier
     This starts to use market signals, so adj brier is used
@@ -63,7 +63,7 @@ def optimize_nfelo_base(return_config=False, basin_hop=False, bg_overrides={}):
             'wepa_weight', 'market_resist_factor'
         ],
         'nfelo_brier_adj',
-        basin_hop=basin_hop,
+        random_starts=random_starts,
         bg_overrides=bg_overrides
     )
     optimizer.optimize()
@@ -117,7 +117,7 @@ def optimize_nfelo_mr(pass_config=None):
         'nfelo_brier_close',
         ## changing market params is noiser, so use
         ## slightly modified opti params ##
-        basin_hop=True
+        random_starts=True
     )
     optimizer.optimize()
     optimizer.save_to_logs()

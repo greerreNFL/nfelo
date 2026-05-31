@@ -18,7 +18,7 @@ class Nfelo:
     def __init__(self, data:DataLoader, config:dict):
         self.data = data
         self.config = config['nfelo_config']
-        self.initial_elos = config['begining_elo']
+        self.initial_elos = config['beginning_elo']
         self.first_season = 2009
         self.current_file = data.current_file[
             data.current_file['season'] >= self.first_season
@@ -250,8 +250,8 @@ class Nfelo:
         row['ending_nfelo_home'] = row['starting_nfelo_home'] + weighted_shift_home
         row['ending_nfelo_away'] = row['starting_nfelo_away'] + weighted_shift_away
         ## add errors ##
-        row['se_market'] = (row['home_margin'] - row['home_line_close']) ** 2
-        row['se_model'] = (row['home_margin'] - row['nfelo_home_line_base']) ** 2
+        row['se_market'] = (row['home_margin'] + row['home_line_close']) ** 2
+        row['se_model'] = (row['home_margin'] + row['nfelo_home_line_base']) ** 2
         ## update team records ##
         ## pull out teams and params for concision ##
         ht = row['home_team']
@@ -288,7 +288,7 @@ class Nfelo:
         self.current_elos[at]['season'] = row['season']
         self.current_elos[at]['week'] = row['week']
         self.current_elos[at]['game_id'] = row['game_id']
-        self.current_elos[ht]['opponent'] = row['home_team']
+        self.current_elos[at]['opponent'] = row['home_team']
         self.current_elos[at]['starting_nfelo'] = row['starting_nfelo_away']
         self.current_elos[at]['ending_nfelo'] = row['ending_nfelo_away']
         ## reset rolling info ##

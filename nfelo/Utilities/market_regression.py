@@ -147,9 +147,9 @@ def regress_to_market(
     ## set regression factors ##
     mr_factor = initial_mr_factor(model_line, market_line, spread_delta_base)
     rmse_mod = rmse_adj(
-        market_line,market_line,rmse_base,
+        model_line, market_line, rmse_base,
         model_se_home, market_se_home,
-        model_se_away, market_se_away    
+        model_se_away, market_se_away
     )
     ll_mod = long_adj(model_line, market_line, ll_inflator)
     hook_mod = hook_adj(model_line, market_line, hook_certainty)

@@ -76,8 +76,13 @@ class NfeloGrader:
         }
     }
 
-    def __init__(self, df:pd.DataFrame):
+    def __init__(self, df:pd.DataFrame, season_filter=None):
+        ## season_filter, if a list of seasons, restricts grading to those seasons ##
+        ## default None means grade every season in the df (existing behavior) ##
+        if season_filter is not None:
+            df = df[df['season'].isin(season_filter)].copy()
         self.df = df.copy()
+        self.season_filter = season_filter
         self.graded_games = df[['game_id', 'season', 'week']].copy()
         self.graded_records = []
         self.grade_models()
