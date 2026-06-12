@@ -97,17 +97,19 @@ class NfeloGraderModel:
         '''
         Generates a score record that can be combined with others in a df
         '''
+        ats_col = '{0}_ats'.format(self.model_name)
+        ats_be_col = '{0}_ats_be'.format(self.model_name)
         return {
             'model_name' : self.model_name,
-            'home_line' : self.model_line,
+            'n_games' : len(self.df),
             'brier' : self.df['{0}_brier'.format(self.model_name)].sum(),
             'brier_per_game' : self.df['{0}_brier'.format(self.model_name)].mean(),
             'su' : self.df['{0}_su'.format(self.model_name)].mean(),
-            'ats' : self.df['{0}_ats'.format(self.model_name)].mean(),
-            'ats_be' : self.df['{0}_ats_be'.format(self.model_name)].mean(),
+            'ats' : self.df[ats_col].mean(),
+            'ats_be' : self.df[ats_be_col].mean(),
             'ats_be_play_pct' : (
-                self.df['{0}_ats_be'.format(self.model_name)].count() /
-                self.df['{0}_ats'.format(self.model_name)].fillna(0).count()
+                self.df[ats_be_col].count() /
+                self.df[ats_col].fillna(0).count()
             ),
             'market_correl' : market_correl(
                 self.model_line, self.market_line

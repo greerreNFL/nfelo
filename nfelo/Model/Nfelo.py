@@ -3,10 +3,12 @@ import numpy
 import statistics
 import pathlib
 
+from nfelotranslation import Translator
+
 from ..Data import DataLoader
 from ..Utilities import (
-    offseason_regression, probability_to_spread, elo_to_prob,
-    regress_to_market, prob_to_elo, calc_cover_probs,
+    offseason_regression, elo_to_prob,
+    regress_to_market, prob_to_elo,
     calc_weighted_shift, calc_clv
 )
 
@@ -31,6 +33,10 @@ class Nfelo:
         self.updated_file = None
         self.updated_file_ext = None
         self.projections = None
+        ## per-season nfelotranslation Translator, reused across rows via update() ##
+        ## rebuilt only when row season differs from the cached season ##
+        self._translator = None
+        self._translator_season = None
     
     def init_elos(self):
         '''
@@ -62,6 +68,30 @@ class Nfelo:
         ## return ##
         return current_elos
     
+    def _set_translator(self, value, input_type, season):
+        '''
+        Lazily builds or updates the cached nfelotranslation Translator for
+        the given season. Reuses loaded per-season fits via .update() when
+        the row season matches the cached season; rebuilds otherwise.
+
+        Parameters:
+        * value (float): numeric input to translate
+        * input_type (str): one of 'win_prob', 'spread'
+        * season (int): NFL season for the row being processed
+        '''
+        ## for win probs, clamp to the min/max range of translation ##
+        _WP_MIN = 0.001
+        _WP_MAX = 0.999
+        if input_type == 'win_prob':
+            value = min(_WP_MAX, max(_WP_MIN, value))
+        ## convert season (float) to int ##
+        season_int = int(season)
+        if self._translator is None or self._translator_season != season_int:
+            self._translator = Translator(value, input_type, season=season_int, side='home')
+            self._translator_season = season_int
+        else:
+            self._translator.update(value, input_type)
+
     def project_game(self, row):
         '''
         Creates a set of elo projections for a standard "current file" row
@@ -134,9 +164,9 @@ class Nfelo:
             elo_dif=initial_elo_dif,
             z=self.config['z']
         )
-        row['nfelo_home_line_base'] = probability_to_spread(
-            row['nfelo_home_probability_base']
-        )
+        self._set_translator(row['nfelo_home_probability_base'], 'win_prob', row['season'])
+        ## negate: nfelotranslation positive=home favored -> nfelo sportsbook ##
+        row['nfelo_home_line_base'] = -self._translator.spread.posted
         row['nfelo_spread_delta'] = row['nfelo_home_line_base'] - row['home_line_open']
         ## calc regressions ##
         mr_regression_open = regress_to_market(
@@ -173,26 +203,25 @@ class Nfelo:
         row['market_regression_factor_open'] = mr_regression_open[1]
         row['nfelo_dif_close'] = mr_regression_close[0]
         row['market_regression_factor_close'] = mr_regression_close[1]
-        ## translate to spread and win probs ##
+        ## translate to spread and win probs, then derive cover/push/loss ##
+        ## from the same per-season Translator distribution centered on the ##
+        ## model's projected win probability ##
+        ## Open -- negate spreads at the nfelo<->nfelotranslation boundary ##
         row['nfelo_home_probability_open'] = elo_to_prob(row['nfelo_dif_open'])
-        row['nfelo_home_line_open'] = probability_to_spread(row['nfelo_home_probability_open'])
-        row['nfelo_home_probability_close'] = elo_to_prob(row['nfelo_dif_close'])
-        row['nfelo_home_line_close'] = probability_to_spread(row['nfelo_home_probability_close'])
-        ## calc evs ##
-        ## Open ## 
-        (
-            row['home_loss_prob_open'], row['home_push_prob_open'], row['home_cover_prob_open']
-        ) = calc_cover_probs(
-            row['nfelo_home_line_open'], row['home_line_open']
-        )
+        self._set_translator(row['nfelo_home_probability_open'], 'win_prob', row['season'])
+        row['nfelo_home_line_open'] = -self._translator.spread.posted
+        row['home_cover_prob_open'] = self._translator.cover_prob(-row['home_line_open'])
+        row['home_push_prob_open'] = self._translator.push_prob(-row['home_line_open'])
+        row['home_loss_prob_open'] = 1 - row['home_cover_prob_open'] - row['home_push_prob_open']
         row['home_open_ev'] = (row['home_cover_prob_open'] - 1.1 * row['home_loss_prob_open']) / 1.1
         row['away_open_ev'] = (row['home_loss_prob_open'] - 1.1 * row['home_cover_prob_open']) / 1.1
-        ## close ##
-        (
-            row['home_loss_prob_close'], row['home_push_prob_close'], row['home_cover_prob_close']
-        ) = calc_cover_probs(
-            row['nfelo_home_line_close'], row['home_line_close']
-        )
+        ## Close ##
+        row['nfelo_home_probability_close'] = elo_to_prob(row['nfelo_dif_close'])
+        self._set_translator(row['nfelo_home_probability_close'], 'win_prob', row['season'])
+        row['nfelo_home_line_close'] = -self._translator.spread.posted
+        row['home_cover_prob_close'] = self._translator.cover_prob(-row['home_line_close'])
+        row['home_push_prob_close'] = self._translator.push_prob(-row['home_line_close'])
+        row['home_loss_prob_close'] = 1 - row['home_cover_prob_close'] - row['home_push_prob_close']
         ## add aways for down stream pipes ##
         row['away_loss_prob_close'] = row['home_cover_prob_close']
         row['away_push_prob_close'] = row['home_push_prob_close']
@@ -202,7 +231,8 @@ class Nfelo:
         ## calc clvs ##
         row['home_clv_from_open'], row['away_clv_from_open'] = calc_clv(
             original_home_spread=row['home_line_open'],
-            current_home_spread=row['home_line_close']
+            current_home_spread=row['home_line_close'],
+            season=row['season'],
         )
         ## save some more down stream datapoints ##
         ## return the row ##

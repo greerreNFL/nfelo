@@ -1,4 +1,4 @@
-__version__ = "4.0.2"
+__version__ = "4.1.0"
 
 from .Data import DataLoader
 from .Model import Nfelo

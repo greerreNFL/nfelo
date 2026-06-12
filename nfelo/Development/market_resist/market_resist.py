@@ -2,15 +2,19 @@ import pandas as pd
 import numpy
 import pathlib
 
+from nfelotranslation import Translator
+
 from ...Utilities import (
-    elo_to_prob, probability_to_spread,
-    calc_shift
+    elo_to_prob, calc_shift
 )
 
 ### Explore how the market resist factor responds to different ###
 ### scenarios ##
 def market_resist_explore():
     recs = []
+    ## per-season MODEL fit used for synthetic exploration; default to the ##
+    ## most recent fully-completed season ##
+    translator = Translator(0.5, 'win_prob', season=2024, side='home')
     ## construct hypotheticals ##
     for home_elo_dif_model in range(-25,26):
         ## scale up to elo dif ##
@@ -20,8 +24,11 @@ def market_resist_explore():
             home_elo_dif_market *= 20
             ## transalte to hypothetical spread ##
             try:
-                model_spread = probability_to_spread(elo_to_prob(home_elo_dif_model))
-                market_spread = probability_to_spread(elo_to_prob(home_elo_dif_market))
+                translator.update(elo_to_prob(home_elo_dif_model), 'win_prob')
+                ## negate: nfelotranslation positive=home favored -> nfelo sportsbook ##
+                model_spread = -translator.spread.posted
+                translator.update(elo_to_prob(home_elo_dif_market), 'win_prob')
+                market_spread = -translator.spread.posted
                 for home_result in range(-10,11):
                     ## calculate hypothetical shifts ##
                     home_shift = calc_shift(

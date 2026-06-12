@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.1.0] - 2026-06-12
+
+### Changed
+- **Replaced CSV spread/probability lookup tables with
+  `nfelotranslation` 0.2.0 `Translator`.** `Nfelo.project_game` now
+  maps win probabilities to spreads and derives cover/push/loss
+  probabilities.
+- **`DataLoader` market implied win probabilities** now use
+  `nfelotranslation` spread→WP conversion (`Data/Helpers/market_wp.py`)
+  instead of `spread_to_probability` CSV lookup. Spread and ML implied
+  probabilities are combined via a **logit blend (70% spread / 30% ML)**
+  when both are available, rather than spread-only with ML fallback.
+- **`calc_clv`** now takes a `season` argument.
+- **`spread_translation.py`** trimmed to `elo_to_prob` / `prob_to_elo`
+  only. Removed `probability_to_spread`, `spread_to_probability`, and
+  the associated lookup CSVs.
+- **Optimizer output schema standardized** via `RecordSchema.py`.
+  Train CSV rows now carry all model metrics in canonical
+  `{metric}_{model}` columns (fixed column order across objectives).
+  Test rows use `test_`-prefixed columns joinable on `run_id`.
+  `objective_model` and `objective_metric` columns added for clarity.
+- **`_benchmarks.csv` snapshot** now writes scalar columns only (fixes
+  a bug where a `home_line` Series was written into benchmark rows).
+- **`ANALYSIS_PLAYBOOK.md`** updated for the new optimizer output
+  schema and benchmark semantics.
+
+### Added
+- `nfelotranslation==0.2.0` dependency (`requirements.txt`).
+- `Data/Helpers/market_wp.py` — series-level spread↔WP helpers and
+  spread/ML logit blending for `DataLoader`.
+- `Optimizer/Primitives/RecordSchema.py` — canonical models, metrics,
+  features, and `extract_performance()` for optimizer CSVs.
+- Per-eval runtime logging to `{opti_tag}-{date}_runtime.csv`
+  (`eval_seconds`, hop, eval number, objective value).
+
+### Removed
+- `Utilities/cover_probability.py` and lookup datasets
+  (`margin_distributions.csv`, `probability_spread_multiples.csv`,
+  `spread_probability_translation.csv`).
+
 ## [4.0.2] - 2026-05-31
 
 ### Fixed

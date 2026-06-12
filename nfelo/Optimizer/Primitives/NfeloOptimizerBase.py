@@ -7,6 +7,9 @@ import pathlib
 import datetime
 
 from ...Performance import NfeloGrader
+from .RecordSchema import FEATURES
+from .RecordSchema import extract_performance
+from .RecordSchema import RUNTIME_LOG_COLUMNS
 
 
 class NfeloOptimizerBase():
@@ -111,6 +114,37 @@ class NfeloOptimizerBase():
         self.opti_rec = {}
         ## init date captured once so multi-day runs land in one file ##
         self.opti_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+
+    def _runtime_log_path(self):
+        '''
+        Path to the per-eval runtime CSV for this optimization tag + date.
+        '''
+        return '{0}/results/{1}-{2}_runtime.csv'.format(
+            pathlib.Path(__file__).parent.parent.resolve(),
+            self.opti_tag,
+            self.opti_date
+        )
+
+    def _log_eval_runtime(self, eval_seconds, minimized_obj):
+        '''
+        Appends one row per objective-function eval to the runtime CSV.
+        '''
+        row = {
+            'optimization_type': self.opti_tag,
+            'opti_date': self.opti_date,
+            'hop_number': self.hop_number,
+            'eval_number': self.total_runs,
+            'completed_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'eval_seconds': eval_seconds,
+            'objective': self.objective,
+            'minimized_obj': minimized_obj,
+            'achieved_value': self.revert_obj(minimized_obj),
+        }
+        log_loc = self._runtime_log_path()
+        new = pd.DataFrame([row], columns=RUNTIME_LOG_COLUMNS)
+        header = not pathlib.Path(log_loc).exists()
+        new.to_csv(log_loc, mode='a', header=header, index=False)
 
 
     ## NORMALIZATION FUNCTIONS ##
@@ -262,24 +296,16 @@ class NfeloOptimizerBase():
             self.opti_rec['hop_number'] = self.hop_number
             self.opti_rec['run_id'] = self.run_id
             self.opti_rec['objective'] = self.objective
+            ## explicit objective model + metric so the schema is unambiguous ##
+            obj_config = self.available_obj_functions[self.objective]
+            self.opti_rec['objective_model'] = obj_config['model']
+            self.opti_rec['objective_metric'] = obj_config['metric']
             self.opti_rec['achieved_value'] = self.revert_obj(obj)
-            ## add performance data ##
-            self.opti_rec['brier'] = self.metric_extraction(grader, self.model_name, 'brier')
-            self.opti_rec['brier_per_game'] = self.metric_extraction(grader, self.model_name, 'brier_per_game')
-            self.opti_rec['brier_adj'] = self.metric_extraction(grader, self.model_name, 'brier_adj')
-            self.opti_rec['brier_ats_adj'] = self.metric_extraction(grader, self.model_name, 'brier_ats_adj')
-            self.opti_rec['su'] = self.metric_extraction(grader, self.model_name, 'su')
-            self.opti_rec['ats'] = self.metric_extraction(grader, self.model_name, 'ats')
-            self.opti_rec['ats_be'] = self.metric_extraction(grader, self.model_name, 'ats_be')
-            self.opti_rec['ats_be_play_pct'] = self.metric_extraction(grader, self.model_name, 'ats_be_play_pct')
-            self.opti_rec['market_correl'] = self.metric_extraction(grader, self.model_name, 'market_correl')
-            ## final model specific metrics ##
-            self.opti_rec['brier_nfelo_close'] = self.metric_extraction(grader, 'nfelo_close', 'brier')
-            self.opti_rec['ats_nfelo_close'] = self.metric_extraction(grader, 'nfelo_close', 'ats')
-            self.opti_rec['ats_be_nfelo_close'] = self.metric_extraction(grader, 'nfelo_close', 'ats_be')
-            ## populate features ##
-            for feature, v in self.available_features.items():
-                self.opti_rec[feature] = self.nfelo_model.config[feature]
+            ## populate canonical performance columns from RecordSchema ##
+            self.opti_rec.update(extract_performance(grader))
+            ## populate features in canonical fixed order ##
+            for feature in FEATURES:
+                self.opti_rec[feature] = self.nfelo_model.config.get(feature)
             ## save ##
             self.save_to_logs()
             ## snapshot market + market_open benchmarks once per split (idempotent via file check) ##
@@ -289,18 +315,10 @@ class NfeloOptimizerBase():
             if self.test_season_filter is not None:
                 test_grader = NfeloGrader(self.nfelo_model.updated_file, season_filter=self.test_season_filter)
                 test_rec = {'run_id': self.run_id}
-                test_rec['brier'] = self.metric_extraction(test_grader, self.model_name, 'brier')
-                test_rec['brier_per_game'] = self.metric_extraction(test_grader, self.model_name, 'brier_per_game')
-                test_rec['brier_adj'] = self.metric_extraction(test_grader, self.model_name, 'brier_adj')
-                test_rec['brier_ats_adj'] = self.metric_extraction(test_grader, self.model_name, 'brier_ats_adj')
-                test_rec['su'] = self.metric_extraction(test_grader, self.model_name, 'su')
-                test_rec['ats'] = self.metric_extraction(test_grader, self.model_name, 'ats')
-                test_rec['ats_be'] = self.metric_extraction(test_grader, self.model_name, 'ats_be')
-                test_rec['ats_be_play_pct'] = self.metric_extraction(test_grader, self.model_name, 'ats_be_play_pct')
-                test_rec['market_correl'] = self.metric_extraction(test_grader, self.model_name, 'market_correl')
-                test_rec['brier_nfelo_close'] = self.metric_extraction(test_grader, 'nfelo_close', 'brier')
-                test_rec['ats_nfelo_close'] = self.metric_extraction(test_grader, 'nfelo_close', 'ats')
-                test_rec['ats_be_nfelo_close'] = self.metric_extraction(test_grader, 'nfelo_close', 'ats_be')
+                ## canonical performance columns prefixed test_ so train+test ##
+                ## frames join cleanly on run_id with no column renames ##
+                for k, v in extract_performance(test_grader).items():
+                    test_rec['test_{0}'.format(k)] = v
                 ## append to _test.csv in results/ ##
                 test_log_loc = '{0}/results/{1}-{2}_test.csv'.format(
                     pathlib.Path(__file__).parent.parent.resolve(),
@@ -320,8 +338,9 @@ class NfeloOptimizerBase():
 
     def _snapshot_market_benchmarks(self, grader, split):
         '''
-        Append the market + market_open grader records for `split` to
-        {opti_tag}-{opti_date}_benchmarks.csv. No-ops if `split` already
+        Append market + market_open grader records for `split` to
+        {opti_tag}-{opti_date}_benchmarks.csv. One-time static reference
+        per split (see ANALYSIS_PLAYBOOK.md). No-ops if `split` already
         present in the file.
         '''
         bench_loc = '{0}/results/{1}-{2}_benchmarks.csv'.format(
@@ -335,11 +354,21 @@ class NfeloOptimizerBase():
                 return
         except:
             existing = None
+        ## scalar metrics only -- playbook: market + market_open per split ##
+        benchmark_cols = [
+            'model_name', 'n_games', 'brier', 'brier_per_game', 'rmse', 'su',
+            'market_correl', 'brier_adj', 'brier_ats_adj',
+        ]
         rows = []
         for rec in grader.graded_records:
             if rec['model_name'] in ('market', 'market_open'):
                 row = {'split': split}
-                row.update(rec)
+                for col in benchmark_cols:
+                    if col == 'rmse':
+                        se = rec.get('se')
+                        row[col] = float(numpy.sqrt(se)) if se is not None else None
+                    else:
+                        row[col] = rec.get(col)
                 rows.append(row)
         if not rows:
             return
@@ -356,6 +385,7 @@ class NfeloOptimizerBase():
         * Grade the model
         * Return a score to minimize
         '''
+        eval_start = float(time.time())
         ## update model ##
         self.update_params(x)
         ## rerun model ##
@@ -371,6 +401,7 @@ class NfeloOptimizerBase():
         ))
         ## mid-run save: write a row whenever a new best is found ##
         self.mid_opti_output(obj, grader)
+        self._log_eval_runtime(float(time.time()) - eval_start, obj)
         ## return ##
         return obj
 

@@ -4,9 +4,10 @@ import pathlib
 
 import nfelodcm as dcm
 
-from ..Utilities import (
-    american_to_hold_adj_prob, spread_to_probability,
-    prob_to_elo, merge_check, probability_to_spread
+from ..Utilities import american_to_hold_adj_prob, prob_to_elo, merge_check
+from .Helpers import (
+    market_spread_to_win_prob_series, win_prob_to_model_spread_series,
+    blend_spread_ml_win_prob_series,
 )
 
 class DataLoader:
@@ -89,23 +90,28 @@ class DataLoader:
             market_data['ml_hold_close']
         ) = american_to_hold_adj_prob(market_data['home_ml_close'], market_data['away_ml_close'])
         ## add spread implied wps ##
-        market_data['spread_implied_home_win_probability_open'] = spread_to_probability(
-            market_data['home_line_open']
+        ## per-season SpreadMapper inverse via nfelotranslation (unified model, no inference-time recalibration) ##
+        market_data['spread_implied_home_win_probability_open'] = market_spread_to_win_prob_series(
+            market_data['home_line_open'], market_data['season']
         )
         market_data['spread_implied_away_win_probability_open'] = 1 - market_data['spread_implied_home_win_probability_open']
-        market_data['spread_implied_home_win_probability_close'] = spread_to_probability(
-            market_data['home_line_close']
+        market_data['spread_implied_home_win_probability_close'] = market_spread_to_win_prob_series(
+            market_data['home_line_close'], market_data['season']
         )
         market_data['spread_implied_away_win_probability_close'] = 1 - market_data['spread_implied_home_win_probability_close']
-        ## combine implied
-        market_data['home_implied_win_probability_open'] = market_data['spread_implied_home_win_probability_open'].combine_first(
-            market_data['ml_implied_home_win_probability_open']
+        ## combine implied: logit blend 70% spread / 30% ML when both exist; else 100% of available ##
+        market_data['home_implied_win_probability_open'] = blend_spread_ml_win_prob_series(
+            market_data['spread_implied_home_win_probability_open'],
+            market_data['ml_implied_home_win_probability_open'],
+            spread_weight=0.7,
         )
-        market_data['away_implied_win_probability_open'] = 1- market_data['home_implied_win_probability_open']
-        market_data['home_implied_win_probability_close'] = market_data['spread_implied_home_win_probability_close'].combine_first(
-            market_data['ml_implied_home_win_probability_close']
+        market_data['away_implied_win_probability_open'] = 1 - market_data['home_implied_win_probability_open']
+        market_data['home_implied_win_probability_close'] = blend_spread_ml_win_prob_series(
+            market_data['spread_implied_home_win_probability_close'],
+            market_data['ml_implied_home_win_probability_close'],
+            spread_weight=0.7,
         )
-        market_data['away_implied_win_probability_close'] = 1- market_data['home_implied_win_probability_close']
+        market_data['away_implied_win_probability_close'] = 1 - market_data['home_implied_win_probability_close']
         ## add implied elo dif ##
         market_data['home_implied_elo_dif_open'] = prob_to_elo(market_data['home_implied_win_probability_open'])
         market_data['home_implied_elo_dif_close'] = prob_to_elo(market_data['home_implied_win_probability_close'])
@@ -393,8 +399,13 @@ class DataLoader:
             (pd.isnull(games['away_538_qb_adj']))
         ].copy()
         ## add spreads ##
-        games['538_home_line_close'] = probability_to_spread(games['elo_prob1'])
-        games['qbelo_home_line_close'] = probability_to_spread(games['qbelo_prob1'])
+        ## per-season MODEL SpreadMapper via nfelotranslation ##
+        games['538_home_line_close'] = win_prob_to_model_spread_series(
+            games['elo_prob1'], games['season']
+        )
+        games['qbelo_home_line_close'] = win_prob_to_model_spread_series(
+            games['qbelo_prob1'], games['season']
+        )
         if len(missing) > 0:
             print('          Warning - {0} games were missing qb adjs'.format(
                 len(missing)
