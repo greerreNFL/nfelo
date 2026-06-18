@@ -81,6 +81,7 @@ class NfeloOptimizerBase():
             bg_overrides={},
             best_guesses=None, bound=(0,1),
             tol=0.000001, step=0.00001, method='SLSQP',
+            results_dir=None,
         ):
         self.opti_tag = opti_tag
         self.nfelo_model = nfelo_model
@@ -114,17 +115,26 @@ class NfeloOptimizerBase():
         self.opti_rec = {}
         ## init date captured once so multi-day runs land in one file ##
         self.opti_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        ## per-run output directory; defaults to Optimizer/results/ ##
+        if results_dir is None:
+            results_dir = pathlib.Path(__file__).parent.parent.resolve() / 'results'
+        self.results_dir = pathlib.Path(results_dir)
 
+    def _results_path(self, filename):
+        '''
+        Path to a results artifact inside results_dir.
+        '''
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        return str(self.results_dir / filename)
 
     def _runtime_log_path(self):
         '''
         Path to the per-eval runtime CSV for this optimization tag + date.
         '''
-        return '{0}/results/{1}-{2}_runtime.csv'.format(
-            pathlib.Path(__file__).parent.parent.resolve(),
+        return self._results_path('{0}-{1}_runtime.csv'.format(
             self.opti_tag,
-            self.opti_date
-        )
+            self.opti_date,
+        ))
 
     def _log_eval_runtime(self, eval_seconds, minimized_obj):
         '''
@@ -319,12 +329,10 @@ class NfeloOptimizerBase():
                 ## frames join cleanly on run_id with no column renames ##
                 for k, v in extract_performance(test_grader).items():
                     test_rec['test_{0}'.format(k)] = v
-                ## append to _test.csv in results/ ##
-                test_log_loc = '{0}/results/{1}-{2}_test.csv'.format(
-                    pathlib.Path(__file__).parent.parent.resolve(),
+                test_log_loc = self._results_path('{0}-{1}_test.csv'.format(
                     self.opti_tag,
-                    self.opti_date
-                )
+                    self.opti_date,
+                ))
                 try:
                     existing = pd.read_csv(test_log_loc, index_col=0)
                 except:
@@ -343,11 +351,10 @@ class NfeloOptimizerBase():
         per split (see ANALYSIS_PLAYBOOK.md). No-ops if `split` already
         present in the file.
         '''
-        bench_loc = '{0}/results/{1}-{2}_benchmarks.csv'.format(
-            pathlib.Path(__file__).parent.parent.resolve(),
+        bench_loc = self._results_path('{0}-{1}_benchmarks.csv'.format(
             self.opti_tag,
-            self.opti_date
-        )
+            self.opti_date,
+        ))
         try:
             existing = pd.read_csv(bench_loc, index_col=0)
             if 'split' in existing.columns and split in existing['split'].values:
@@ -431,65 +438,18 @@ class NfeloOptimizerBase():
         opti_time_end = float(time.time())
         ## update properties ##
         self.opti_seconds = opti_time_end - opti_time_start
-        ## save a graded output of the final version ##
-        ## make sure the model has used the most recent config ##
-        self.update_params(solution.x)
-        self.nfelo_model.run()
-        graded = NfeloGrader(self.nfelo_model.updated_file, season_filter=self.season_filter)
-        graded.print_scores()
-        graded.save_scores(
-            '{0}/graded.csv'.format(
-                pathlib.Path(__file__).parent.resolve()
-            )
-        )
-        ## save the optimization record
-        for i, v in enumerate(solution.x):
-            self.opti_vals.append(self.denormalize_value(v, self.features[i]))
-        ## construct the record ##
-        self.opti_rec = {}
-        self.opti_rec['optimization_type'] = self.opti_tag
-        self.opti_rec['optimization_method'] = self.method
-        self.opti_rec['optimization_tol'] = self.tol
-        self.opti_rec['optimization_step'] = self.step
-        self.opti_rec['opti_date'] = self.opti_date
-        self.opti_rec['hop_number'] = self.hop_number
-        ## run_id for the final state -- uses total_runs at end so it's distinct from mid-run saves ##
-        self.run_id = '{0}-{1}'.format(
-            self.hop_number if self.hop_number is not None else 1,
-            self.total_runs
-        )
-        self.opti_rec['run_id'] = self.run_id
-        self.opti_rec['run_time'] = self.opti_seconds
-        self.opti_rec['iterations'] = solution.nit
-        self.opti_rec['avg_time_per_eval'] = self.opti_seconds / solution.nit
-        self.opti_rec['objective'] = self.objective
-        self.opti_rec['achieved_value'] = self.revert_obj(solution.fun)
-        ## add performance data ##
-        self.opti_rec['brier'] = self.metric_extraction(graded, self.model_name, 'brier')
-        self.opti_rec['brier_per_game'] = self.metric_extraction(graded, self.model_name, 'brier_per_game')
-        self.opti_rec['brier_adj'] = self.metric_extraction(graded, self.model_name, 'brier_adj')
-        self.opti_rec['brier_ats_adj'] = self.metric_extraction(graded, self.model_name, 'brier_ats_adj')
-        self.opti_rec['su'] = self.metric_extraction(graded, self.model_name, 'su')
-        self.opti_rec['ats'] = self.metric_extraction(graded, self.model_name, 'ats')
-        self.opti_rec['ats_be'] = self.metric_extraction(graded, self.model_name, 'ats_be')
-        self.opti_rec['ats_be_play_pct'] = self.metric_extraction(graded, self.model_name, 'ats_be_play_pct')
-        self.opti_rec['market_correl'] = self.metric_extraction(graded, self.model_name, 'market_correl')
-        ## final model specific metrics ##
-        self.opti_rec['brier_nfelo_close'] = self.metric_extraction(graded, 'nfelo_close', 'brier')
-        self.opti_rec['ats_nfelo_close'] = self.metric_extraction(graded, 'nfelo_close', 'ats')
-        self.opti_rec['ats_be_nfelo_close'] = self.metric_extraction(graded, 'nfelo_close', 'ats_be')
-        ## populate features ##
-        for feature, v in self.available_features.items():
-            self.opti_rec[feature] = self.nfelo_model.config[feature]
 
     def save_to_logs(self, file_name=None):
         '''
         Saves the optimization record to the logs
         '''
-        log_loc = '{0}/results/{1}.csv'.format(
-            pathlib.Path(__file__).parent.parent.resolve(),
-            file_name if file_name is not None else '{0}-{1}'.format(self.opti_tag, self.opti_date)
+        log_loc = self._results_path(
+            file_name if file_name is not None else '{0}-{1}.csv'.format(
+                self.opti_tag, self.opti_date
+            )
         )
+        if not log_loc.endswith('.csv'):
+            log_loc = '{0}.csv'.format(log_loc)
         ## load ##
         try:
             existing = pd.read_csv(log_loc, index_col=0)
