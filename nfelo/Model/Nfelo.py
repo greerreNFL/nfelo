@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import numpy
 import statistics
@@ -210,18 +211,30 @@ class Nfelo:
         row['nfelo_home_probability_open'] = elo_to_prob(row['nfelo_dif_open'])
         self._set_translator(row['nfelo_home_probability_open'], 'win_prob', row['season'])
         row['nfelo_home_line_open'] = -self._translator.spread.posted
-        row['home_cover_prob_open'] = self._translator.cover_prob(-row['home_line_open'])
-        row['home_push_prob_open'] = self._translator.push_prob(-row['home_line_open'])
-        row['home_loss_prob_open'] = 1 - row['home_cover_prob_open'] - row['home_push_prob_open']
-        row['home_open_ev'] = (row['home_cover_prob_open'] - 1.1 * row['home_loss_prob_open']) / 1.1
-        row['away_open_ev'] = (row['home_loss_prob_open'] - 1.1 * row['home_cover_prob_open']) / 1.1
+        if not math.isnan(row['home_line_open']):
+            row['home_cover_prob_open'] = self._translator.cover_prob(-row['home_line_open'])
+            row['home_push_prob_open'] = self._translator.push_prob(-row['home_line_open'])
+            row['home_loss_prob_open'] = 1 - row['home_cover_prob_open'] - row['home_push_prob_open']
+            row['home_open_ev'] = (row['home_cover_prob_open'] - 1.1 * row['home_loss_prob_open']) / 1.1
+            row['away_open_ev'] = (row['home_loss_prob_open'] - 1.1 * row['home_cover_prob_open']) / 1.1
+        else:
+            row['home_cover_prob_open'] = float('nan')
+            row['home_push_prob_open'] = float('nan')
+            row['home_loss_prob_open'] = float('nan')
+            row['home_open_ev'] = float('nan')
+            row['away_open_ev'] = float('nan')
         ## Close ##
         row['nfelo_home_probability_close'] = elo_to_prob(row['nfelo_dif_close'])
         self._set_translator(row['nfelo_home_probability_close'], 'win_prob', row['season'])
         row['nfelo_home_line_close'] = -self._translator.spread.posted
-        row['home_cover_prob_close'] = self._translator.cover_prob(-row['home_line_close'])
-        row['home_push_prob_close'] = self._translator.push_prob(-row['home_line_close'])
-        row['home_loss_prob_close'] = 1 - row['home_cover_prob_close'] - row['home_push_prob_close']
+        if not math.isnan(row['home_line_close']):
+            row['home_cover_prob_close'] = self._translator.cover_prob(-row['home_line_close'])
+            row['home_push_prob_close'] = self._translator.push_prob(-row['home_line_close'])
+            row['home_loss_prob_close'] = 1 - row['home_cover_prob_close'] - row['home_push_prob_close']
+        else:
+            row['home_cover_prob_close'] = float('nan')
+            row['home_push_prob_close'] = float('nan')
+            row['home_loss_prob_close'] = float('nan')
         ## add aways for down stream pipes ##
         row['away_loss_prob_close'] = row['home_cover_prob_close']
         row['away_push_prob_close'] = row['home_push_prob_close']
