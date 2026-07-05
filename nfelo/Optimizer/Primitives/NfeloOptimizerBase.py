@@ -7,6 +7,7 @@ import pathlib
 import datetime
 
 from ...Performance import NfeloGrader
+from .Constraints import Constraint, ConstraintSpec
 from .RecordSchema import FEATURES
 from .RecordSchema import extract_performance
 from .RecordSchema import RUNTIME_LOG_COLUMNS
@@ -26,8 +27,10 @@ class NfeloOptimizerBase():
         'b' : {'bg':6.75, 'min':3, 'max':10},
         ## off season regression ##
         'reversion' : {'bg':0.15, 'min':0.0, 'max':1.0},
-        'dvoa_weight' : {'bg':0.35, 'min':0.15, 'max':0.5},
-        'wt_ratings_weight' : {'bg':0.15, 'min':0.05, 'max':0.5},
+        'dvoa_weight' : {'bg':0.35, 'min':0.0, 'max':0.5},
+        'wt_ratings_weight' : {'bg':0.15, 'min':0.0, 'max':0.5},
+        'units_weight' : {'bg':0.15, 'min':0.05, 'max':1.0},
+        'prior_elo_scale' : {'bg':65.0, 'min':35, 'max':100},
         ## score assessment ##
         'margin_weight' : {'bg':0.6, 'min':0.1, 'max':1.0},
         'pff_weight' : {'bg':0.22, 'min':0.1, 'max':1.0},
@@ -72,11 +75,23 @@ class NfeloOptimizerBase():
         }
     }
 
+    available_constraints = {
+        'priors_budget' : ConstraintSpec(
+            members=['dvoa_weight', 'wt_ratings_weight', 'units_weight'],
+            limit=1.0,
+        ),
+        'outcome_weights_budget' : ConstraintSpec(
+            members=['margin_weight', 'pff_weight', 'wepa_weight'],
+            limit=1.0,
+            kind='eq',
+        ),
+    }
+
     def __init__(self,
             ## meta ##
             opti_tag,
             ## model ##
-            nfelo_model, features, objective,
+            nfelo_model, features, objective, constraints=None,
             ## optimizer params ##
             bg_overrides={},
             best_guesses=None, bound=(0,1),
@@ -88,6 +103,7 @@ class NfeloOptimizerBase():
         self.model_name = self.available_obj_functions[objective]['model']
         self.features = features
         self.objective = objective
+        self.constraints = constraints or []
         ## opti params ##
         self.bg_overrides = bg_overrides
         self.best_guesses = self.gen_best_guesses()
@@ -269,6 +285,37 @@ class NfeloOptimizerBase():
         ## return ##
         return grade
 
+    def build_scipy_constraints(self):
+        '''
+        Builds scipy constraint dicts for the active constraints on this run.
+        '''
+        out = []
+        for name in self.constraints:
+            spec = self.available_constraints[name]
+            ## members not in the tuned feature set would be silently
+            ## excluded from the budget sum, making the constraint wrong ##
+            missing = [m for m in spec.members if m not in self.features]
+            if missing:
+                raise ValueError(
+                    'CONSTRAINT ERROR: {0} requires {1} in the tuned feature set'.format(
+                        name, missing
+                    )
+                )
+            feature_bounds = {}
+            for i, feat in enumerate(self.features):
+                if feat not in spec.members:
+                    continue
+                info = self.available_features[feat]
+                feature_bounds[feat] = {
+                    'min' : info['min'],
+                    'max' : info['max'],
+                    'index' : i,
+                }
+            out.append(
+                Constraint(spec, feature_bounds).to_scipy()
+            )
+        return out
+
     def mid_opti_output(self, obj, grader):
         '''
         Saves a stream of optimization results while the optimizer is running
@@ -423,11 +470,13 @@ class NfeloOptimizerBase():
         self.best_val = float('inf')
         self.total_runs = 0
         opti_time_start = float(time.time())
+        scipy_constraints = self.build_scipy_constraints()
         solution = minimize(
             self.obj_func,
             self.best_guesses,
             bounds=self.bounds,
             method=self.method,
+            constraints=scipy_constraints or None,
             options={
                 'ftol' : self.tol,
                 'eps' : self.step

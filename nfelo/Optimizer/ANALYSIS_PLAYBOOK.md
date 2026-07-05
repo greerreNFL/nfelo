@@ -1061,6 +1061,73 @@ concern.
    minimum **not be near the worst** in test Brier. Method 2's train/test
    correlation tells you whether to trust test rank at all.
 
+### Stage 1 — centroid cluster pick (when shipping a structural change)
+
+Use this when you are **deliberately shipping a new subsystem** (e.g. a
+rebuilt prior blend with new normalization or constraints) and
+deviation-from-production is expected, not a risk to minimize. The
+production-proximity rules in the picking philosophy still apply when
+**iterating** on an existing deployed config; they are not the right lens
+when the point of the run is to move to a new prior regime.
+
+**When to use.** Multi-feature prior runs where hops cluster in feature
+space, the majority of restarts land in one or two high-Brier clusters, and
+downstream stages (market regression, etc.) will add more market pull later.
+You want a priors config that is strong on train Brier without spending all
+ATS headroom at stage 1.
+
+**Procedure.**
+
+1. **Cluster hops** (not raw rows) in normalized tuned-feature space — same
+   bounds as Method 5. Ward linkage is fine; k=4 is a useful default for
+   prior-only runs. Rank clusters by **mean train Brier** (primary) and
+   size (secondary). Treat small, low-Brier clusters as exploratory tails,
+   not the ship target, unless you have a specific reason to prefer them.
+
+2. **Profile the winning cluster(s).** For each cluster report p10 / p25 /
+   p50 / p75 / p90 on train Brier, `ats_be`, `ats_be_play_pct`, and tuned
+   features. Compare **centroid (mean)** vs **train-best** vs **median
+   Brier** config — they are often different points. Auto-scale charts per
+   metric; do not mix Brier (~3.6), weights (~0–1), and
+   `prior_elo_scale` (~80+) on one axis.
+
+3. **Brier vs BE ATS scatter** (train only). Plot all hops colored by
+   cluster; mark each cluster's train-best (star) and median-Brier config
+   (square). Fit an OLS line across the full cloud. Higher train Brier and
+   higher `ats_be` tend to correlate, but **cluster train-bests can sit
+   below the line on ATS** — that is the inefficient frontier (e.g. extreme
+   WT with low dvoa/units). Read `NfeloGraderModel.py` for how `ats_be` is
+   defined before interpreting.
+
+4. **Pick inside the tight cluster, not on the WT extreme.** Within the
+   chosen cluster, select a config in the **p50–p75 band on train Brier**
+   (per-game, higher = better). Prefer candidates near the cluster centroid
+   on features and with **strong ATS relative to their Brier** (above the
+   scatter regression line or top quartile ATS within that band). Do **not**
+   auto-ship the cluster train-best if it is clearly an outlier on WT,
+   `prior_elo_scale`, or ATS unless you explicitly accept that tradeoff.
+
+5. **Leave headroom for later stages.** Stage 2 MR will push predictions
+   toward the market. A stage-1 config that already maxes market-adjacent
+   prior signal (high `wt_ratings_weight`, low dvoa/units) leaves less room
+   for ATS after regression. Centroid-adjacent picks in the p50–p75 Brier
+   band are the default when MR is still to come.
+
+6. **Sanity-check only on test** — same as standard Stage 1 step 6. Train
+   ranks; test confirms you are not picking a train-only crater.
+
+**Phrasing template.**
+
+- *"Clusters 1 and 4 hold 65/93 hops and share a WT-heavy, high-Brier
+  profile. Cluster 4 is tighter on Brier; train-best `38-147` buys +0.010
+  Brier vs centroid but costs −0.006 on train `ats_be`. Locked
+  `33-42` in the C4 p50–p75 Brier band for better Brier/ATS efficiency
+  before stage-2 MR."*
+
+**Reference implementation.** See
+`.local/analysis/priors/budget_cluster_viz.py` (percentile tables, scatter,
+p50–p75 band export) on the constrained priors budget run.
+
 ### Stage 2 (market factors, regressed Brier objective)
 
 The optimizer's pull toward "be the market" is structural — we have to push

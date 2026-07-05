@@ -19,6 +19,7 @@ class ShardConfig:
     objective: str
     test_seasons: Optional[List[int]] = None
     bg_overrides: Dict[str, float] = dataclasses.field(default_factory=dict)
+    constraints: List[str] = dataclasses.field(default_factory=list)
     max_seconds: Optional[int] = None
     tol: float = 0.000001
     step: float = 0.00001

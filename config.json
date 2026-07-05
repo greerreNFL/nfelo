@@ -2,7 +2,7 @@
   "models": {
     "nfelo": {
       "nfelo_config": {
-        "config_name": "nfelo_v4.02",
+        "config_name": "nfelo_v4.2.0",
         "reg_weeks": 260,
         "level_weeks": 10,
         "home_bye_week": 0.3,
@@ -11,9 +11,11 @@
         "time_advantage": 0.2,
         "hfa_div": -0.31,
         "hfa_non_div": 0.09,
-        "reversion": 0.001,
-        "dvoa_weight": 0.474,
-        "wt_ratings_weight": 0.05,
+        "reversion": 0.5263,
+        "dvoa_weight": 0.3637,
+        "wt_ratings_weight": 0.4496,
+        "units_weight": 0.1811,
+        "prior_elo_scale": 81.2,
         "k": 9.114,
         "z": 401.62,
         "b": 9.999,

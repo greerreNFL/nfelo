@@ -1,3 +1,11 @@
+'''
+LEGACY: these single-process entry points predate the training/ pipeline
+(see training/TRAINING_PLAYBOOK.md), which is now the canonical way to run
+optimizations. They have not been updated for the Priors refactor -- no
+units_weight, no prior_elo_scale, no constraints (e.g. priors_budget) --
+and optimize_nfelo_mr hardcodes old-regime 2-prior config overrides.
+Reconcile or remove when the training pipeline fully replaces them.
+'''
 import pandas as pd
 import pathlib
 import json

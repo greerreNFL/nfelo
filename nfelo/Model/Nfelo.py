@@ -9,7 +9,8 @@ from ..Data import DataLoader
 from ..Utilities import (
     offseason_regression, elo_to_prob,
     regress_to_market, prob_to_elo,
-    calc_weighted_shift, calc_clv
+    calc_weighted_shift, calc_clv,
+    ExternalPrior,
 )
 
 class Nfelo:
@@ -109,34 +110,28 @@ class Nfelo:
             if row['game_number_{0}'.format(team_type)] == 1 and row['season'] > self.first_season:
                 ## some data to keep track of conversions ##
                 previous_season_elo = row['starting_nfelo_{0}'.format(team_type)]
-                previous_elo_norm = 1505 + (
-                    previous_season_elo - statistics.median(self.yearly_elos[row['season']-1])
-                )
-                ## actual reversion ##
-                row['starting_nfelo_{0}'.format(team_type)] = offseason_regression(
+                reversion = offseason_regression(
+                    ## internal prior ##
                     league_elo = statistics.median(self.yearly_elos[row['season']-1]),
-                    previous_elo = row['starting_nfelo_{0}'.format(team_type)],
-                    proj_dvoa = row['{0}_projected_dvoa'.format(team_type)],
-                    proj_wt_rating = row['{0}_wt_rating'.format(team_type)],
+                    previous_elo = previous_season_elo,
                     reversion = self.config['reversion'],
-                    dvoa_weight = self.config['dvoa_weight'],
-                    wt_weight = self.config['wt_ratings_weight']
+                    ## external priors ##
+                    season = row['season'],
+                    prior_elo_scale = self.config['prior_elo_scale'],
+                    external_priors = [
+                        ExternalPrior('dvoa', self.config['dvoa_weight'], row['{0}_projected_dvoa'.format(team_type)]),
+                        ExternalPrior('wt', self.config['wt_ratings_weight'], row['{0}_wt_rating'.format(team_type)]),
+                        ExternalPrior('units', self.config['units_weight'], row['{0}_units_preseason_elo'.format(team_type)]),
+                    ],
                 )
-                ## keep track of reversion history ##
-                self.reversion_records.append({
-                    'team' : row['{0}_team'.format(team_type)],
-                    'season' : row['season'],
-                    'week' : row['week'],
-                    'previous_ending_elo' : previous_season_elo,
-                    'league_elo' : statistics.median(self.yearly_elos[row['season']-1]),
-                    'mean_reverted_elo' : (
-                        self.config['reversion'] * 1505 +
-                        (1 - self.config['reversion']) * previous_elo_norm
-                    ),
-                    'dvoa_elo' : 1505 + 484 * row['{0}_projected_dvoa'.format(team_type)],
-                    'wt_elo' : 1505 + 24.8 * row['{0}_wt_rating'.format(team_type)],
-                    'new_elo' : row['starting_nfelo_{0}'.format(team_type)]
-                })
+                ## update the new elo ##
+                row['starting_nfelo_{0}'.format(team_type)] = reversion.new_elo
+                ## save a reversion record for state/analysis ##
+                self.reversion_records.append(reversion.to_record(
+                    row['{0}_team'.format(team_type)],
+                    row['season'],
+                    row['week'],
+                ))
         ## save an unadjusted elo dif ##
         row['nfelo_dif_pre_adjustment'] = row['starting_nfelo_home'] - row['starting_nfelo_away']
         ## create initial elo dif with game context ##

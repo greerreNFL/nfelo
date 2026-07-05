@@ -49,7 +49,7 @@ _MARKET_MODELS = {'market_open', 'market_close'}
 
 FEATURES = [
     'k', 'z', 'b', 'reversion', 'dvoa_weight',
-    'wt_ratings_weight', 'margin_weight', 'pff_weight',
+    'wt_ratings_weight', 'units_weight', 'prior_elo_scale', 'margin_weight', 'pff_weight',
     'wepa_weight', 'market_resist_factor',
     'market_regression', 'se_span', 'rmse_base',
     'spread_delta_base', 'hook_certainty',

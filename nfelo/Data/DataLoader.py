@@ -22,7 +22,8 @@ class DataLoader:
         self.db = dcm.load([
             'games', 'rosters', 'logos', ## fastr ##
             'wepa', 'wt_ratings', 'hfa', 'qbelo', ## nfelo models
-            'filmmargins', 'market_data' ## other data
+            'filmmargins', 'market_data', ## other data
+            'nfelounits_elo', ## nfelounits preseason elo
         ])
         self.dvoa_projections = pd.read_csv(
             '{0}/dvoa_projections.csv'.format(self.intermediate_data_loc),
@@ -120,6 +121,37 @@ class DataLoader:
         )
         ## return ##
         return market_data
+
+    def add_units_elo(self, games):
+        '''
+        Adds nfelounits preseason elo to the games file
+        '''
+        units_preseason_elo = self.db['nfelounits_elo'].sort_values(
+            by=['team', 'season', 'week'],
+            ascending=[True, True, True]
+        ).groupby(['team', 'season'], as_index=False).first()[
+            ['team', 'season', 'elo']
+        ].rename(columns={'elo': 'units_preseason_elo'})
+        games = pd.merge(
+            games,
+            units_preseason_elo.rename(columns={
+                'team' : 'home_team',
+                'units_preseason_elo' : 'home_units_preseason_elo',
+            }),
+            on=['home_team', 'season'],
+            how='left'
+        )
+        games = pd.merge(
+            games,
+            units_preseason_elo.rename(columns={
+                'team' : 'away_team',
+                'units_preseason_elo' : 'away_units_preseason_elo',
+            }),
+            on=['away_team', 'season'],
+            how='left'
+        )
+        ## return ##
+        return games
 
     def format_games(self):
         '''
@@ -484,6 +516,7 @@ class DataLoader:
         games = merge_check(self.add_market_info, games, 'market data')
         games = merge_check(self.add_wt_ratings, games, 'wt ratings')
         games = merge_check(self.add_dvoa, games, 'dvoa projections')
+        games = merge_check(self.add_units_elo, games, 'units preseason elo')
         games = merge_check(self.add_wepa_margins, games, 'wepa margins')
         games = merge_check(self.add_pff_margins, games, 'pff margins')
         games = merge_check(self.add_hfa, games, 'hfa')

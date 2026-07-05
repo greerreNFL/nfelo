@@ -25,6 +25,7 @@ class RunPlan:
     )
     test_seasons: Optional[List[int]] = None
     bg_overrides: Dict[str, float] = dataclasses.field(default_factory=dict)
+    constraints: List[str] = dataclasses.field(default_factory=list)
     max_seconds_per_shard: Optional[int] = None
     tol: float = 0.000001
     step: float = 0.00001
@@ -53,6 +54,7 @@ class RunPlan:
             objective=self.objective,
             test_seasons=self.test_seasons,
             bg_overrides=self.bg_overrides,
+            constraints=self.constraints,
             max_seconds=self.max_seconds_per_shard,
             tol=self.tol,
             step=self.step,

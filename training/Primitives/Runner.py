@@ -35,6 +35,7 @@ class Runner():
             shard_config.features,
             shard_config.objective,
             bg_overrides=shard_config.bg_overrides,
+            constraints=shard_config.constraints or None,
             test_seasons=shard_config.test_seasons,
         )
         base = optimizer.base

@@ -22,6 +22,7 @@ class NfeloOptimizer():
             bg_overrides={},
             best_guesses=None, bound=(0,1),
             tol=0.000001, step=0.00001, method='SLSQP',
+            constraints=None,
             random_starts=False,
             niter=30,
             ## test/train split ##
@@ -34,6 +35,7 @@ class NfeloOptimizer():
             bg_overrides=bg_overrides,
             best_guesses=best_guesses, bound=bound,
             tol=tol, step=step, method=method,
+            constraints=constraints,
         )
         ## wrap with random starts if requested ##
         if random_starts:
