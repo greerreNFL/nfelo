@@ -1,3 +1,4 @@
+import math
 from nfelotranslation import Translator
 
 def calc_clv(
@@ -23,6 +24,8 @@ def calc_clv(
     '''
     ## negate spreads at the nfelo<->nfelotranslation boundary; nfelo uses ##
     ## sportsbook (negative=home favored), nfelotranslation uses positive=home ##
+    if math.isnan(original_home_spread) or math.isnan(current_home_spread):
+        return float('nan'), float('nan')
     nt_open = -original_home_spread
     nt_close = -current_home_spread
     translator = Translator(nt_open, 'spread', season=int(season), side='home')

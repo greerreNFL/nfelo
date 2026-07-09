@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nfelo"
+dynamic = ["version"]
+requires-python = ">=3.8"
+dependencies = [
+    "beautifulsoup4",
+    "numpy",
+    "pandas",
+    "requests",
+    "statsmodels",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "nfelo.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nfelo*"]
