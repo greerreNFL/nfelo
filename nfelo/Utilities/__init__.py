@@ -2,7 +2,7 @@ from .odds import american_to_prob, american_to_price, spread_to_prob_elo, ameri
 from .spread_translation import elo_to_prob, prob_to_elo
 from .merge_check import merge_check
 from .offseason_regression import offseason_regression, OffseasonReversionResult, ExternalPrior
-from .market_regression import regress_to_market
+from .MarketRegression import regress_open, regress_close, regress_markets
 from .elo_shift import calc_shift, calc_weighted_shift
 from .bet_size import kelly_bet_size, bet_size
 from .scoring_brier import brier_score, adj_brier, ats_adj_brier

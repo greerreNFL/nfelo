@@ -51,9 +51,8 @@ FEATURES = [
     'k', 'z', 'b', 'reversion', 'dvoa_weight',
     'wt_ratings_weight', 'units_weight', 'prior_elo_scale', 'margin_weight', 'pff_weight',
     'wepa_weight', 'market_resist_factor',
-    'market_regression', 'se_span', 'rmse_base',
-    'spread_delta_base', 'hook_certainty',
-    'long_line_inflator', 'min_mr',
+    'se_span', 'mr_mid', 'mr_steep',
+    'min_mr', 'mr_cap_elo', 'mr_close_exp',
 ]
 
 RUNTIME_LOG_COLUMNS = [

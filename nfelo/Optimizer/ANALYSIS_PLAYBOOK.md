@@ -46,8 +46,8 @@ The **two stages** in detail:
    looks unusual relative to its neighbors is suspect.
 
 2. **Stage 2 — Market factors.** Holding the base model fixed, tune the market
-   regression family of features: `market_regression`, `se_span`, `rmse_base`,
-   `spread_delta_base`, `hook_certainty`, `long_line_inflator`, `min_mr`.
+   regression family of features: `mr_mid`, `mr_steep`, `min_mr`,
+   `mr_cap_elo`, and `mr_close_exp`.
    Objective is the regressed Brier (`nfelo_brier_close`, etc.). Here the
    pull-to-market force from the loss function is dominant, so the analysis
    has to **trade Brier against alpha preservation** — a configuration that
@@ -111,18 +111,154 @@ anything, do this:
    `available_features`. The *behavior* — what the feature controls in the
    prediction pipeline — lives in `nfelo/Model/Nfelo.py` (search for the
    feature name to find where it enters the math).
-3. **Understand the downstream metrics.** `ats`, `ats_be`, `ats_be_play_pct`,
-   `brier_ats_adj`, `market_correl` are produced by `NfeloGrader`. To
-   interpret them correctly, read the scoring logic in
-   `nfelo/Performance/NfeloGraderModel.py`. In particular, you must know
-   exactly how `ats_be` and `ats_be_play_pct` are computed before you can
-   reason about the Pareto frontier in stage 2 (units won/lost ≠ raw plays).
+3. **Read the Metric dictionary below** before interpreting any performance
+   column. Every train/test CSV column is `{metric}_{model}` exported by
+   `RecordSchema.extract_performance()` from `NfeloGraderModel.gen_score_record()`.
+   Source of truth for formulas: `nfelo/Performance/NfeloGraderModel.py`.
 
-The rest of this section is a reference: a feature dictionary (what each
-tuned parameter does mechanically), a feature-group catalog (which
+The rest of this section is a reference: a **metric dictionary** (what each
+grader column means and how to use it in analysis), a **feature dictionary**
+(what each tuned parameter does mechanically), a feature-group catalog (which
 parameters compensate or co-move and what that means in plain English),
 and a methodological note on how feature groups change how you interpret
 Method 1's marginal distributions.
+
+---
+
+## Metric dictionary
+
+Optimizer train CSVs contain performance columns named `{metric}_{model}`.
+Test rows use the same names with a `test_` prefix (e.g.
+`test_ats_be_play_pct_nfelo_close`). Models and metrics are fixed across
+every run (`Optimizer/Primitives/RecordSchema.py`).
+
+**Higher Brier is better** (sign-flipped vs textbook). The optimizer log
+shows the scipy-minimizable form (negative); `achieved_value` and all
+`brier*` columns in the CSV are the real (positive) numbers.
+
+### Optimizer-only vs evaluation metrics
+
+Some CSV columns exist **only to steer the optimizer** during a run. They
+combine signals into one scalar so SLSQP has a single objective. **Do not
+use them to evaluate or pick configs** — they hide the tradeoff you need to
+see.
+
+| Optimizer-only (do not analyze) | Use for evaluation instead |
+|---|---|
+| `achieved_value` | `brier_nfelo_close` / `brier_per_game_nfelo_close` |
+| `brier_ats_adj_nfelo_close` | `brier_*` + `ats_be_*` + `ats_be_play_pct_*` **in conjunction** (open and close books separately) |
+| `brier_adj_*` (stage 1 objective family) | `brier_*` and `market_correl_*` separately |
+
+**Stage 2 MR evaluation:** read close-book **Brier** for calibration and
+open/close **`ats_be`** + **`ats_be_play_pct`** for betting value. Plot or
+tabulate the Pareto frontier in that space. The optimizer's
+`brier_ats_adj` applies a fixed close-book edge multiplier; your
+pick from the run may legitimately differ from the top `achieved_value` row.
+
+---
+
+### Models (the `{model}` suffix)
+
+| Schema model | Grader `model_name` | Line graded | Market line | When to use |
+|---|---|---|---|---|
+| `nfelo_unregressed` | `nfelo_unregressed` | `nfelo_home_line_base` | close | Stage 1; base model with no MR |
+| `nfelo_open` | `nfelo_open` | `nfelo_home_line_open` | open | Open book after open MR |
+| `nfelo_close` | `nfelo_close` | `nfelo_home_line_close` | close | **Stage 2 primary** — final close line |
+| `market_open` | `market_open` | `home_line_open` | open | Benchmark only (no ATS cols) |
+| `market_close` | `market` | `home_line_close` | close | Benchmark only (no ATS cols) |
+
+Stage 2 MR analysis should focus on **`nfelo_close`** columns. Open and
+unregressed columns provide context; they are not interchangeable with
+close.
+
+### Metrics (the `{metric}` prefix)
+
+All definitions below are implemented in
+`NfeloGraderModel.gen_score_record()` unless noted.
+
+**`brier`** — sum of per-game Brier scores on the model's win probability
+vs result. CSV column example: `brier_nfelo_close`. Brier in this package is
+538's convention, which means **higher is better.**
+
+**`brier_per_game`** — `brier / n_games`. Same ranking as `brier`; use
+for cross-split comparisons when game counts differ.
+
+**`rmse`** — `sqrt(mean squared error)` of `(model_line + home_margin)`.
+Line calibration in spread space; exported from grader `se`.
+
+**`su`** — straight-up win rate (model picks the side implied by its line).
+
+**`ats`** — mean ATS on all graded bets (`grade_bet_vector`, `be_only=False`).
+Pushes and non-plays are NaN and excluded from the mean.
+
+**`ats_be`** — mean ATS on **breakeven-or-better plays only**
+(`grade_bet_vector`, `be_only=True`: `home_ev > 0` OR `away_ev > 0`).
+Non-plays are NaN and excluded from the mean. This is hit rate **on plays
+that clear the EV gate**, not play volume.
+
+**`ats_be_play_pct`** — **play rate** for that book:
+
+```
+count(ats_be non-NaN) / n_games
+```
+
+where `n_games` is every game in the graded split (the grader denominator
+uses `ats.fillna(0).count()`, which equals the full split size). This is
+the share of **all games** that are BE+ plays on **that book's line**.
+
+CSV examples: `ats_be_play_pct_nfelo_close`, `ats_be_play_pct_nfelo_open`.
+
+**How to report play rate in analysis:** read these columns directly from
+the train (or test) CSV. Report open and close **separately**. Do **not**
+ratio open vs close play pct, do **not** re-run the model to recompute
+play rates when optimizer CSVs already exist, and do **not** substitute
+ad-hoc cohort definitions unless the user explicitly asks for a custom
+decomposition.
+
+**`market_correl`** — Pearson correlation between model line and market
+line for that book.
+
+**`brier_adj`** — `brier * (1 + (1 - market_correl²))`. Rewards lower
+market correlation. Stage 1 optimizer context; evaluate with `brier` and
+`market_correl` separately.
+
+**`brier_ats_adj`** — **optimizer-only** stage-2 scalar (`scoring_brier.ats_adj_brier`,
+called from `NfeloGraderModel.gen_score_record()` with **close-book**
+`brier`, `ats_be`, `ats_be_play_pct`). **Do not use for post-run evaluation.**
+
+```
+brier_nfelo_close × (1 + 5 × close_play_pct × (close_ats_be − 0.53))
+```
+
+The objective uses only the selected grader model's metrics. For
+`nfelo_brier_close`, those are the close-book metrics; open ATS does not
+enter the optimizer objective.
+
+### Derived quantities (not CSV columns)
+
+**Edge per game (evaluation):** `ats_be_play_pct × (ats_be − 0.5238)` per
+book. Evaluate open and close **separately** when comparing configs. This is
+an evaluation measure, not the formula used by `brier_ats_adj`.
+
+### Common play-rate mistakes
+
+- **`ats_be_play_pct_nfelo_unregressed` is fixed** in stage-2 runs (base
+  model does not change). Do not expect it to move with MR params.
+- **`ats_be_play_pct_nfelo_close` moves with MR** — it is the close-book
+  play rate the objective sees.
+- Open and close play pct measure **independent books**. A high close pct
+  does not mean "close-dominated" relative to open; compare magnitudes only
+  when the analysis question calls for it, using the two columns as-is.
+
+### Row metadata (not `{metric}_{model}`)
+
+| Column | Meaning |
+|---|---|
+| `achieved_value` | Optimizer scalar at saved config — **optimizer-only**; do not rank configs on this alone |
+| `objective` | Objective key (e.g. `nfelo_brier_close`) |
+| `objective_model` | Grader model the objective uses (e.g. `nfelo_close`) |
+| `objective_metric` | Grader metric (e.g. `brier_ats_adj`) — **optimizer-only** |
+| `run_id` | `{hop_number}-{eval_number}`; join train ↔ test |
 
 ---
 
@@ -200,35 +336,30 @@ extra penalty.
 These only flex in stage-2 runs. They control how aggressively the
 prediction is blended toward market closing/opening lines.
 
-**`market_regression`** (bound `[0, 0.9]`) — base regression strength.
-Multiplies all the per-game regression-factor adjustments. Higher →
-model output gets pulled harder toward the market line.
+**`mr_mid`** (bound `[30, 80]`) — opening disagreement, in Elo, where the
+logistic regression factor equals 0.5. Higher → the model remains more
+market-regressed across a wider range of disagreements.
 
-**`spread_delta_base`** (bound `[1.1, 5.0]`) — exponential decay rate
-in `initial_mr_factor`. Higher → regression factor decays faster as
-|model_line − market_line| grows → model gets to "keep" its opinion when
-it strongly disagrees. Lower → regression stays strong even on big model-
-vs-market gaps.
+**`mr_steep`** (bound `[0.05, 2.0]`) — steepness of the opening logistic
+curve. Higher → a sharper transition around `mr_mid`; lower → a smoother
+transition.
 
-**`rmse_base`** (bound `[2, 10]`) — scaling of the rmse-based amplitude
-modifier. Higher → recent prediction-error history affects regression
-more strongly. Lower → muted effect.
+**`min_mr`** (bound `[0.20, 0.49]`) — asymptotic floor of the opening
+regression factor. Higher → large disagreements retain less independent
+model opinion.
 
-**`se_span`** (bound `[2, 16]`) — window size for the rolling SE used
-in `rmse_adj`. Higher → smoother, slower-adapting SE estimate. Lower →
-faster but noisier.
+**`mr_cap_elo`** (bound `[40, 100]`) — maximum absolute residual between
+the posted model difference and the market after regression. Lower → more
+aggressively mutes extreme opinions.
 
-**`hook_certainty`** (bound `[-0.5, 0]`) — reduces regression on half-
-point ("hook") market lines. Larger magnitude (more negative) → bigger
-reduction → model keeps its opinion on hook lines.
+**`mr_close_exp`** (bound `[1, 4]`) — sensitivity of close regression to
+open-to-close movement. Higher → movement away from the raw model increases
+close regression more sharply, while movement toward it restores conviction
+more sharply.
 
-**`long_line_inflator`** (bound `[0, 0.75]`) — boost regression on
-long-line favorites. Higher → more aggressive regression to market on
-big lines.
-
-**`min_mr`** (bound `[0, 0.5]`) — minimum allowed regression factor.
-A floor that prevents the multiplicative adjustments from collapsing the
-regression to zero. Higher → always at least this much regression.
+**`se_span`** (bound `[2, 16]`) remains available for rolling standard-error
+tracking, but it is no longer an input to market regression and is not part
+of the standard stage-2 MR feature set.
 
 ---
 
@@ -411,56 +542,27 @@ happens.
 
 **Score formula:** `market_resistance = (market_resist_factor − 1.15) / 8.85`
 
-### Group: Market regression strength (market_regression, spread_delta_base, min_mr) — *how hard to pull predictions toward market lines (stage 2)*
+### Group: Opening regression shape (`mr_mid`, `mr_steep`, `min_mr`) — *how regression changes with disagreement*
 
-Members and within-group correlations (from narrow-retune, n=100):
-- `market_regression` ↔ `min_mr`: negative (−0.51 partial)
-- `market_regression` ↔ `spread_delta_base`: negative (−0.45 partial)
-- `spread_delta_base` ↔ `min_mr`: positive (+0.43 partial)
+These parameters jointly define the opening logistic curve. `mr_mid`
+locates the 0.5 crossing, `mr_steep` controls how abruptly the curve changes,
+and `min_mr` controls the amount of regression retained at large
+disagreements. Their marginal distributions should be interpreted together
+because different combinations can produce similar curves over the
+disagreement range represented in the training data.
 
-Interpretation: when `market_regression` (the base strength) is high,
-neither `min_mr` (floor) nor `spread_delta_base` (decay aggressiveness)
-needs to do work — the base regression already does the job. The three
-are substitutes for "how much regression overall."
+### Group: Opinion limits (`min_mr`, `mr_cap_elo`) — *how much independent opinion can survive*
 
-**Score formula** (combine base strength with inverse of the limiters):
-```
-mr_strength = mean(
-    market_regression / 0.9,
-    1 - (spread_delta_base - 1.1) / 3.9,
-    min_mr / 0.5,
-)
-```
+Both parameters constrain extreme disagreement, but at different points:
+`min_mr` limits the logistic factor before posting, while `mr_cap_elo`
+directly caps the final residual against the market. A loose value for one
+can be offset by a tighter value for the other.
 
-**High** = predictions get strongly pulled toward the market; less
-divergence from market consensus.
+### Group: Close movement (`mr_close_exp`) — *how strongly open-to-close movement changes conviction*
 
-**Low** = predictions retain more model conviction; allowed to disagree
-with the market.
-
-### Group: Market regression hooks (hook_certainty, long_line_inflator) — *special-case adjustments*
-
-Members:
-- `hook_certainty`: reduces regression on half-point lines (negative
-  values mean larger reduction)
-- `long_line_inflator`: boosts regression on big lines
-
-These are situational levers, not a unified "more or less regression"
-axis. They should mostly be evaluated on their own.
-
-### Group: Adaptation speed (se_span, rmse_base) — *how quickly the model's accuracy-trust adapts*
-
-Members:
-- `se_span`: rolling SE window — higher = slower-adapting, smoother
-- `rmse_base`: amplitude of the SE-based adjustment
-
-Higher `rmse_base` with lower `se_span` = aggressive accuracy tracking.
-Lower `rmse_base` with higher `se_span` = stable, slow-changing accuracy
-trust.
-
-This group hasn't shown strong within-group correlation in our runs
-(both narrow-retune values were moderate), but mechanistically they're
-both about accuracy-history adaptation.
+`mr_close_exp` acts on the opening factor through the close movement ratio.
+Analyze it against both close Brier and open/close ATS because it can alter
+the close projection without changing the opening projection.
 
 ---
 
@@ -491,15 +593,12 @@ Update when adding meaningful new runs.
 | **score_pff**                    | 0.13 | 0.20 | 0.24 | 0.33 | 0.39 |
 | **market_resistance** (base only)| 0.04 | 0.04 | 0.04 | 0.10 | 0.44 |
 
-### MR stage groups (pooled from narrow-retune; n=100)
+### MR stage groups
 
-| group | p10 | p25 | p50 | p75 | p90 |
-|---|---|---|---|---|---|
-| **mr_strength**          | 0.45 | 0.58 | 0.70 | 0.90 | 1.00 |
-| **hook_certainty** (raw) | −0.37 | −0.20 | −0.07 | 0.00 | 0.00 |
-| **long_line_inflator** (raw) | 0.14 | 0.27 | 0.44 | 0.61 | 0.68 |
-| **se_span** (raw)        | 3.8 | 5.6 | 8.5 | 12.0 | 14.6 |
-| **rmse_base** (raw)      | 2.1 | 3.3 | 5.6 | 8.0 | 9.0 |
+The prior MR quantiles described the retired regression mechanism and must
+not be applied to the current S-curve/CPR parameters. Rebuild this table
+from completed runs using `mr_mid`, `mr_steep`, `min_mr`, `mr_cap_elo`, and
+`mr_close_exp`.
 
 ### Reading these tables
 
@@ -715,8 +814,8 @@ corr_obj = joined[[feat, 'brier_nfelo_close']].corr(method='spearman').iloc[0, 1
   suggestions for how to better achieve the feature's intended goal, 2) reasons
   why the feature is not achieving its goal, or 3) reasons to drop if from the model.
 - Bound-hits >20% on one side → either the bound is wrong (widen and re-run) OR
-  it's an intentional tradeoff lever (e.g., `min_mr` stuck at 0 = "we want as
-  little floor on regression as possible"). Check the known-tradeoffs section
+  it's an intentional tradeoff lever (e.g., `min_mr` stuck at its lower bound =
+  "we want as little floor on regression as possible"). Check the known-tradeoffs section
   before assuming the bound is wrong.
 - `corr_obj` near 0 with high CV → feature isn't driving the objective at all.
 - `corr_obj` strong (|r| > 0.3) and feature converging → feature is doing real work.
@@ -724,19 +823,19 @@ corr_obj = joined[[feat, 'brier_nfelo_close']].corr(method='spearman').iloc[0, 1
 **Phrasing template (explanation first, metric as evidence; calibrate
 confidence per the ladder).**
 
-- *"`market_regression` converges tightly across hops (CV = 0.04, range
-  0.69–0.78), and higher values correlate with higher objective on this run
+- *"`mr_mid` converges tightly across hops (CV = 0.04, range
+  48–54), and higher values correlate with higher objective on this run
   (Spearman = +0.61). Most plausibly a real lever, but on n = 20 the corr
   CI is wide; would expect this to replicate in a fresh run."*
-- *"`min_mr` doesn't converge (CV = 0.92) and 38% of hops land at the lower
+- *"`min_mr` doesn't converge (CV = 0.42) and 38% of hops land at the lower
   bound. Either the feature is not strongly identified by the objective, or
-  0 is the preferred value and the bound could be removed. The two readings
+  the lowest allowed floor is preferred. The two readings
   predict different things if we widen the bound — recommend widening to
   test."*
-- *"`se_span` shows no detectable correlation with the objective (Spearman
+- *"`mr_cap_elo` shows no detectable correlation with the objective (Spearman
   = +0.04) and bounces across its range. On this sample we can't reject
   'feature is doing nothing,' but absence of evidence ≠ evidence of absence
-  — consider whether the model code uses `se_span` somewhere that we're
+  — consider whether the cap is active often enough in the observed games
   not measuring before dropping it."*
 
 ---
@@ -858,7 +957,7 @@ for feat in FEATURES:
 **Reading it.**
 
 - A feature with opposing-sign correlations to two metrics is a tradeoff lever.
-  Example: `market_regression` positive vs. `brier_nfelo_close` and negative vs.
+  Example: `min_mr` positive vs. `brier_nfelo_close` and negative vs.
   `ats_be_play_pct` confirms the known "more market regression → better
   calibration but fewer plays" relationship.
 - A feature with same-sign correlations to multiple goal metrics is "free": no
@@ -868,19 +967,20 @@ for feat in FEATURES:
 
 **Phrasing template.**
 
-- *"`market_regression` trades calibration against play volume: pushing it up
+- *"`min_mr` trades calibration against play volume: pushing it up
   improves train Brier (Spearman = +0.71) but cuts plays sharply
   (Spearman = −0.82 on `ats_be_play_pct`) — the known tradeoff is empirically
   present in this run."*
-- *"`hook_certainty` correlates with neither Brier (+0.04) nor ATS (−0.02) —
+- *"`mr_cap_elo` correlates with neither Brier (+0.04) nor ATS (−0.02) —
   it's not doing useful work in this feature set."*
 
 ### Known tradeoffs (living list — add to this as you find more)
 
-- **`market_regression` ↑ → Brier ↑, plays ↓.** Pushing the model toward the
-  market improves probability calibration but reduces ATS edge by collapsing
-  model-market line gaps. This is the structural tension the whole stage-2
-  optimization has to navigate.
+- **Stronger market regression → Brier ↑, plays ↓.** Raising `min_mr`, moving
+  `mr_mid` outward, or tightening `mr_cap_elo` can pull the model closer to the
+  market, improving probability calibration while reducing ATS edge by
+  collapsing model-market line gaps. This is the structural tension the whole
+  stage-2 optimization has to navigate.
 - *(add new tradeoffs here as analyses uncover them)*
 
 ---
@@ -1130,32 +1230,22 @@ p50–p75 band export) on the constrained priors budget run.
 
 ### Stage 2 (market factors, regressed Brier objective)
 
-The optimizer's pull toward "be the market" is structural — we have to push
-back with a Pareto view. The right axis for that pushback is **units won
-or lost**, not raw play volume.
+The optimizer's pull toward "be the market" is structural — push back in
+**evaluation** with a Pareto view on separate metrics, not on
+`brier_ats_adj` or `achieved_value`.
 
-> Units = (play volume) × (edge per play over breakeven).
->
-> Read `nfelo/Performance/NfeloGraderModel.py` to confirm exactly how
-> `ats_be` (hit rate among plays clearing the breakeven threshold) and
-> `ats_be_play_pct` (fraction of games that are plays) are defined for this
-> codebase. Compute units consistently with those definitions — a typical
-> form is `units = ats_be_play_pct * (ats_be - 0.5238)` (where 0.5238 is the
-> breakeven rate at standard -110 odds), but verify against the source.
-
-1. For each of the top configs by train Brier, compute units (per the
-   formula above, using values as defined in `NfeloGraderModel.py`).
-2. Plot or tabulate the (Brier, units) Pareto frontier — the configs that
-   are not dominated by any other config on both axes simultaneously.
-3. **The user picks from the frontier.** The playbook does not pick for
-   them — the right tradeoff between Brier and units is a model-strategy
-   decision, not a statistical one. Surface 2-4 candidate configs from the
-   frontier with their (Brier, units) coordinates and the qualitative
-   character of each ("high accuracy, low volume" vs. "moderate accuracy,
-   higher volume").
-4. `ats_be_play_pct` stays informational, not a hard floor. A config with
-   very few plays may still be on the frontier; it is the user's call
-   whether that profile is acceptable.
+1. For top configs, read **`brier_nfelo_close`** (calibration) and
+   **`ats_be_nfelo_open` / `ats_be_nfelo_close`** plus
+   **`ats_be_play_pct_nfelo_open` / `ats_be_play_pct_nfelo_close`**
+   (betting value per book) from the train CSV.
+2. Plot or tabulate **`brier_per_game_nfelo_close` vs edge per game** on
+   each book (`ats_be_play_pct × (ats_be − 0.5238)`). Evaluate the open and
+   close books separately; only close-book ATS enters the optimizer objective.
+3. **The user picks from the frontier.** Surface 2–4 candidates with their
+   Brier and open/close ATS + play rates stated **separately** — not a
+   combined objective column.
+4. `ats_be_play_pct` stays informational. A config with few plays can still
+   be acceptable if hit rate and Brier justify it.
 
 ---
 

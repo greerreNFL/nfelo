@@ -118,9 +118,8 @@ def optimize_nfelo_mr(pass_config=None):
         'nfelo-mr',
         nfelo,
         [
-            'market_regression', 'se_span', 'rmse_base',
-            'spread_delta_base', 'hook_certainty',
-            'long_line_inflator', 'min_mr'
+            'mr_mid', 'mr_steep', 'min_mr',
+            'mr_cap_elo', 'mr_close_exp'
         ],
         'nfelo_brier_close',
         ## changing market params is noiser, so use

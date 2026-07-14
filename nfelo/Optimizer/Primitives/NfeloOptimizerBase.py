@@ -38,13 +38,12 @@ class NfeloOptimizerBase():
         ## shift modifiers ##
         'market_resist_factor' : {'bg':1.5, 'min':1.15, 'max':10},
         ## market reversions ##
-        'market_regression' : {'bg':.8, 'min':0, 'max':.9},
         'se_span' : {'bg':4, 'min':2, 'max':16},
-        'rmse_base' : {'bg':3.5, 'min':2, 'max':10},
-        'spread_delta_base' : {'bg':1.5, 'min':1.1, 'max':5},
-        'hook_certainty' : {'bg': -0.25, 'min':-0.5, 'max':0},
-        'long_line_inflator' : {'bg':0.25, 'min':0, 'max':.75},
-        'min_mr' : {'bg':0, 'min':0, 'max':0.5}
+        'mr_mid' : {'bg':50.0, 'min':30, 'max':80},
+        'mr_steep' : {'bg':0.45, 'min':0.05, 'max':2.0},
+        'min_mr' : {'bg':0.4345, 'min':0.20, 'max':0.49},
+        'mr_cap_elo' : {'bg':60.0, 'min':40, 'max':100},
+        'mr_close_exp' : {'bg':2.0, 'min':1, 'max':4}
     }
 
     ## set of objective functions allowed ##

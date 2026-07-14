@@ -2,8 +2,9 @@
 
 Parallel optimization runs live under `training/runs/`. Each run produces
 analysis CSVs at the **run root**; orchestration metadata lives in
-`run_details/`. Analysis itself still follows `nfelo/Optimizer/ANALYSIS_PLAYBOOK.md`
-— point it at the merged train CSV in the run root, not at individual shards.
+`run_details/`. Qualitative Method 1–5 analysis follows
+`nfelo/Optimizer/ANALYSIS_PLAYBOOK.md` — point it at the merged train CSV
+in the run root, not at individual shards.
 
 ---
 
@@ -109,7 +110,8 @@ Check `stdout.log` / `stderr.log` in the shard directory on failure.
 ## After the run
 
 1. Read `run_details/summary.json` for failed shards.
-2. Analyze `{opti_tag}-{opti_date}.csv` at the run root using ANALYSIS_PLAYBOOK.
+2. Analyze `{opti_tag}-{opti_date}.csv` at the run root using
+   `nfelo/Optimizer/ANALYSIS_PLAYBOOK.md` (Methods 1–5, conventions).
 3. Join test rows on `run_id` when `_test.csv` exists.
 
 Partial success: finished shards are merged even if others fail. Re-run only

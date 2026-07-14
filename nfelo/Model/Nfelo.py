@@ -8,7 +8,7 @@ from nfelotranslation import Translator
 from ..Data import DataLoader
 from ..Utilities import (
     offseason_regression, elo_to_prob,
-    regress_to_market, prob_to_elo,
+    regress_markets, prob_to_elo,
     calc_weighted_shift, calc_clv,
     ExternalPrior,
 )
@@ -164,40 +164,23 @@ class Nfelo:
         row['nfelo_home_line_base'] = -self._translator.spread.posted
         row['nfelo_spread_delta'] = row['nfelo_home_line_base'] - row['home_line_open']
         ## calc regressions ##
-        mr_regression_open = regress_to_market(
-            ## elo difs and lines ##
-            initial_elo_dif, row['market_elo_dif_open'],
-            row['nfelo_home_line_base'], row['home_line_open'],
-            ## regression config ##
-            self.config['market_regression'], self.config['min_mr'],
-            self.config['spread_delta_base'], self.config['rmse_base'],
-            self.config['long_line_inflator'], self.config['hook_certainty'],
-            ## errors ##
-            self.current_elos[home_team]['ending_model_se'],
-            self.current_elos[home_team]['ending_market_se'],
-            self.current_elos[away_team]['ending_model_se'],
-            self.current_elos[away_team]['ending_market_se'],
-        )
-        mr_regression_close = regress_to_market(
-            ## elo difs and lines ##
-            initial_elo_dif, row['market_elo_dif_close'],
-            row['nfelo_home_line_base'], row['home_line_close'],
-            ## regression config ##
-            self.config['market_regression'], self.config['min_mr'],
-            self.config['spread_delta_base'], self.config['rmse_base'],
-            self.config['long_line_inflator'], self.config['hook_certainty'],
-            ## errors ##
-            self.current_elos[home_team]['ending_model_se'],
-            self.current_elos[home_team]['ending_market_se'],
-            self.current_elos[away_team]['ending_model_se'],
-            self.current_elos[away_team]['ending_market_se'],
-        )
-        ## unpack ##
+        ## open then close — close consumes open PR and OD inside regress_markets ##
         row['nfelo_dif_base'] = initial_elo_dif
-        row['nfelo_dif_open'] = mr_regression_open[0]
-        row['market_regression_factor_open'] = mr_regression_open[1]
-        row['nfelo_dif_close'] = mr_regression_close[0]
-        row['market_regression_factor_close'] = mr_regression_close[1]
+        (
+            row['nfelo_dif_open'],
+            row['market_regression_factor_open'],
+            row['nfelo_dif_close'],
+            row['market_regression_factor_close'],
+        ) = regress_markets(
+            initial_elo_dif,
+            row['market_elo_dif_open'],
+            row['market_elo_dif_close'],
+            self.config['mr_mid'],
+            self.config['mr_steep'],
+            self.config['min_mr'],
+            self.config['mr_cap_elo'],
+            self.config['mr_close_exp'],
+        )
         ## translate to spread and win probs, then derive cover/push/loss ##
         ## from the same per-season Translator distribution centered on the ##
         ## model's projected win probability ##

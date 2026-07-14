@@ -2,7 +2,7 @@
   "models": {
     "nfelo": {
       "nfelo_config": {
-        "config_name": "nfelo_v4.2.0",
+        "config_name": "nfelo_v4.3.0",
         "reg_weeks": 260,
         "level_weeks": 10,
         "home_bye_week": 0.3,
@@ -26,15 +26,12 @@
         "qb_weight": 1,
         "market_weight": 0,
         "nfelo_span": 4,
-        "market_regression": 0.9,
         "se_span": 14.4811,
-        "rmse_base": 5.4032,
-        "spread_delta_base": 1.1004,
-        "key_num_discount": 0,
-        "line_open_deflator": 2,
-        "long_line_inflator": 0.3238,
-        "hook_certainty": -0.0021,
-        "min_mr": 0.4345,
+        "mr_mid": 61.7157,
+        "mr_steep": 1.7031,
+        "min_mr": 0.4348,
+        "mr_cap_elo": 68.1,
+        "mr_close_exp": 3.3741,
         "playoff_boost": 0.1
       },
       "beginning_elo": {
