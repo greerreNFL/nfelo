@@ -100,17 +100,20 @@ class DataLoader:
             market_data['home_line_close'], market_data['season']
         )
         market_data['spread_implied_away_win_probability_close'] = 1 - market_data['spread_implied_home_win_probability_close']
-        ## combine implied: logit blend 70% spread / 30% ML when both exist; else 100% of available ##
+        ## market target = spread-only (spread_weight=1.0). ML blend off until ##
+        ## translation reproduces market spreads well enough not to introduce ##
+        ## half-point close-only plays. Fallback: 100% of whichever leg ##
+        ## exists when the other is missing (same helper as before). ##
         market_data['home_implied_win_probability_open'] = blend_spread_ml_win_prob_series(
             market_data['spread_implied_home_win_probability_open'],
             market_data['ml_implied_home_win_probability_open'],
-            spread_weight=0.7,
+            spread_weight=1.0,
         )
         market_data['away_implied_win_probability_open'] = 1 - market_data['home_implied_win_probability_open']
         market_data['home_implied_win_probability_close'] = blend_spread_ml_win_prob_series(
             market_data['spread_implied_home_win_probability_close'],
             market_data['ml_implied_home_win_probability_close'],
-            spread_weight=0.7,
+            spread_weight=1.0,
         )
         market_data['away_implied_win_probability_close'] = 1 - market_data['home_implied_win_probability_close']
         ## add implied elo dif ##
