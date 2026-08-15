@@ -2,7 +2,7 @@
   "models": {
     "nfelo": {
       "nfelo_config": {
-        "config_name": "nfelo_v4.3.0",
+        "config_name": "nfelo_v4.3.1",
         "reversion": 0.5263,
         "dvoa_weight": 0.3637,
         "wt_ratings_weight": 0.4496,
@@ -18,11 +18,11 @@
         "qb_weight": 1,
         "nfelo_span": 4,
         "se_span": 14.4811,
-        "mr_mid": 43.5592,
-        "mr_steep": 0.9663,
-        "min_mr": 0.4302,
-        "mr_cap_elo": 58.64,
-        "mr_close_exp": 3.585,
+        "mr_mid": 47.5,
+        "mr_steep": 1.1884,
+        "min_mr": 0.4001,
+        "mr_cap_elo": 63.5014,
+        "mr_close_exp": 3.554,
         "playoff_boost": 0.1
       },
       "beginning_elo": {

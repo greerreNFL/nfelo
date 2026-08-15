@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.3.1] - 2026-08-15
+
+### Changed
+
+- **Market target is spread-only.** `DataLoader` now builds open/close implied win probabilities with `spread_weight=1.0` (ML blend off). The previous 70% spread / 30% ML logit blend improved prediction accuracy, but introduced rounding issues that could result in different open/close plays even when the line did not move
+- **`nfelotranslation` bumped to 0.2.2** (`requirements.txt`). 0.2.2 fixed a bug where margin probabilities were not guaranteed to be equal on either side of the spread, resulting in instances where nfelo could see +EV even if model line was equal to the market line.
+- **Retuned market-regression params in `config.json`** Model was retuned and optimized for the above changes.
+
+### Removed
+
+- Unused HFA / bye / surface / `market_weight` keys from `config.json` (dead after the market-regression rebuild; not read by the model).
+
 ## [4.3.0] - 2026-07-14
 
 ### Added
