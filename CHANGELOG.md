@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.4.0] - 2026-08-28
+
+### Changed
+
+- **Market spread → win probability uses the log-loss market mapper** (`nfelotranslation.market_spread_to_win_prob` / `MarketSpreadMapper`) instead of the model MAE slope. Slope is ~7.09 vs the model mapper's ~6.52.
+- **Win probability → spread in `Nfelo.project_game` blends slopes by market regression factor.** `market_percent=0` on the unregressed line, open/close use `market_regression_factor_*`. At 100% regression the reverse map uses the market slope, so posted line matches the market (no phantom plays).
+
+Requires local `nfelotranslation` 0.3.0 (not yet on PyPI). Point the nfl env at the translation repo with `pip install -e`.
+
 ## [4.3.1] - 2026-08-15
 
 ### Changed
