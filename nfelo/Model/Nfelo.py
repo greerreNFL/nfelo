@@ -69,7 +69,7 @@ class Nfelo:
         ## return ##
         return current_elos
     
-    def _set_translator(self, value, input_type, season, market_percent=0.0):
+    def _set_translator(self, value, input_type, season):
         '''
         Lazily builds or updates the cached nfelotranslation Translator for
         the given season. Reuses loaded per-season fits via .update() when
@@ -79,29 +79,19 @@ class Nfelo:
         * value (float): numeric input to translate
         * input_type (str): one of 'win_prob', 'spread'
         * season (int): NFL season for the row being processed
-        * market_percent (float): blend weight toward the market spread-to-WP
-          slope when mapping WP → spread. 0 = model slope, 1 = market slope.
         '''
         ## for win probs, clamp to the min/max range of translation ##
         _WP_MIN = 0.001
         _WP_MAX = 0.999
         if input_type == 'win_prob':
             value = min(_WP_MAX, max(_WP_MIN, value))
-        ## blend weight must be in [0, 1]; missing factor → model slope ##
-        if market_percent is None or pd.isnull(market_percent):
-            market_percent = 0.0
-        else:
-            market_percent = float(min(1.0, max(0.0, market_percent)))
         ## convert season (float) to int ##
         season_int = int(season)
         if self._translator is None or self._translator_season != season_int:
-            self._translator = Translator(
-                value, input_type, season=season_int, side='home',
-                market_percent=market_percent,
-            )
+            self._translator = Translator(value, input_type, season=season_int, side='home')
             self._translator_season = season_int
         else:
-            self._translator.update(value, input_type, market_percent=market_percent)
+            self._translator.update(value, input_type)
 
     def project_game(self, row):
         '''
@@ -169,10 +159,7 @@ class Nfelo:
             elo_dif=initial_elo_dif,
             z=self.config['z']
         )
-        self._set_translator(
-            row['nfelo_home_probability_base'], 'win_prob', row['season'],
-            market_percent=0.0,
-        )
+        self._set_translator(row['nfelo_home_probability_base'], 'win_prob', row['season'])
         ## negate: nfelotranslation positive=home favored -> nfelo sportsbook ##
         row['nfelo_home_line_base'] = -self._translator.spread.posted
         row['nfelo_spread_delta'] = row['nfelo_home_line_base'] - row['home_line_open']
@@ -199,10 +186,7 @@ class Nfelo:
         ## model's projected win probability ##
         ## Open -- negate spreads at the nfelo<->nfelotranslation boundary ##
         row['nfelo_home_probability_open'] = elo_to_prob(row['nfelo_dif_open'])
-        self._set_translator(
-            row['nfelo_home_probability_open'], 'win_prob', row['season'],
-            market_percent=row['market_regression_factor_open'],
-        )
+        self._set_translator(row['nfelo_home_probability_open'], 'win_prob', row['season'])
         row['nfelo_home_line_open'] = -self._translator.spread.posted
         row['home_cover_prob_open'] = self._translator.cover_prob(-row['home_line_open'])
         row['home_push_prob_open'] = self._translator.push_prob(-row['home_line_open'])
@@ -211,10 +195,7 @@ class Nfelo:
         row['away_open_ev'] = (row['home_loss_prob_open'] - 1.1 * row['home_cover_prob_open']) / 1.1
         ## Close ##
         row['nfelo_home_probability_close'] = elo_to_prob(row['nfelo_dif_close'])
-        self._set_translator(
-            row['nfelo_home_probability_close'], 'win_prob', row['season'],
-            market_percent=row['market_regression_factor_close'],
-        )
+        self._set_translator(row['nfelo_home_probability_close'], 'win_prob', row['season'])
         row['nfelo_home_line_close'] = -self._translator.spread.posted
         row['home_cover_prob_close'] = self._translator.cover_prob(-row['home_line_close'])
         row['home_push_prob_close'] = self._translator.push_prob(-row['home_line_close'])

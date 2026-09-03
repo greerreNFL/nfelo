@@ -91,7 +91,7 @@ class DataLoader:
             market_data['ml_hold_close']
         ) = american_to_hold_adj_prob(market_data['home_ml_close'], market_data['away_ml_close'])
         ## add spread implied wps ##
-        ## per-season MarketSpreadMapper (log-loss slope vs observed wins) ##
+        ## per-season SpreadMapper inverse via nfelotranslation (unified model, no inference-time recalibration) ##
         market_data['spread_implied_home_win_probability_open'] = market_spread_to_win_prob_series(
             market_data['home_line_open'], market_data['season']
         )

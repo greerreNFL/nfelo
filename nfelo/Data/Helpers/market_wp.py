@@ -2,10 +2,9 @@
 Series-level helpers for assembling market implied home win probabilities
 in DataLoader.format_market_data.
 
-Market spreads → WP uses nfelotranslation.market_spread_to_win_prob
-(log-loss market mapper), vectorized per season. Model WP → spread still
-goes through Translator (MAE mapper). Spread/ML blending is logit-space
-numpy math.
+The nfelotranslation Translator is a scalar per-game API, so spread<->WP
+conversion loops over a Series while reusing the per-season fit via
+.update() within a season. Spread/ML blending is logit-space numpy math.
 
 Sign convention:
     nfelo uses sportsbook spreads (negative = home favored).
@@ -18,13 +17,7 @@ import numpy
 from scipy.special import expit
 from scipy.special import logit
 
-from nfelotranslation import Translator, MarketSpreadMapper
-
-
-## market mapper configs exist from 2000; Translator/KeyModel from 2007 ##
-_EARLIEST_MARKET_SEASON = 2000
-_EARLIEST_TRANSLATOR_SEASON = 2007
-
+from nfelotranslation import Translator
 
 def _translate_series(values:pd.Series, seasons:pd.Series, input_type:str, in_xform:callable, out_xform:callable):
     '''
@@ -42,9 +35,13 @@ def _translate_series(values:pd.Series, seasons:pd.Series, input_type:str, in_xf
     Returns:
     * series of translated values, index aligned with values
     '''
+    ## clamp to the earliest season of the nfelotranslation package ##
+    _EARLIEST_SEASON = 2007
+    ## convert to numpy arrays for speed ##
     season_arr = seasons.to_numpy()
     value_arr = values.to_numpy(dtype=float)
     out = numpy.full(len(values), numpy.nan)
+    ## initialize translator and season ##
     translator = None
     translator_season = None
     for i in range(len(values)):
@@ -53,7 +50,7 @@ def _translate_series(values:pd.Series, seasons:pd.Series, input_type:str, in_xf
         if numpy.isnan(value) or pd.isna(season):
             continue
         nt_value = in_xform(value)
-        season_clamped = max(int(season), _EARLIEST_TRANSLATOR_SEASON)
+        season_clamped = max(int(season), _EARLIEST_SEASON)
         if translator is None or translator_season != season_clamped:
             translator = Translator(nt_value, input_type, season=season_clamped, side='home')
             translator_season = season_clamped
@@ -65,31 +62,21 @@ def _translate_series(values:pd.Series, seasons:pd.Series, input_type:str, in_xf
 def market_spread_to_win_prob_series(spreads:pd.Series, seasons:pd.Series):
     '''
     Translates a series of market spreads (sportsbook convention) to
-    home win probabilities via the log-loss MarketSpreadMapper.
+    home win probabilities via Translator(input_type='spread').
 
     Parameters:
     * spreads (series): home-perspective market spreads (negative = home favored)
     * seasons (series): season corresponding to each spread (index aligned)
 
     Returns:
-    * win_probs (series): home win probabilities from MarketSpreadMapper (index aligned)
+    * win_probs (series): home win probabilities from unified SpreadMapper (index aligned)
     '''
-    season_arr = seasons.to_numpy()
-    value_arr = spreads.to_numpy(dtype=float)
-    out = numpy.full(len(spreads), numpy.nan)
-    valid = ~numpy.isnan(value_arr) & pd.notna(seasons)
-    if not valid.any():
-        return pd.Series(out, index=spreads.index)
-    seasons_clamped = numpy.array([
-        max(int(s), _EARLIEST_MARKET_SEASON) if keep else None
-        for s, keep in zip(season_arr, valid)
-    ], dtype=object)
-    for season in sorted({s for s in seasons_clamped if s is not None}):
-        mask = numpy.array([s == season for s in seasons_clamped])
-        nt_spreads = -value_arr[mask]
-        mapper = MarketSpreadMapper.from_file(season=int(season))
-        out[mask] = mapper.spread_to_win_prob(nt_spreads)
-    return pd.Series(out, index=spreads.index)
+    return _translate_series(
+        spreads, seasons,
+        input_type='spread',
+        in_xform=lambda v: -v,                ## nfelo sportsbook -> nfelotranslation positive=home favored ##
+        out_xform=lambda t: t.win_prob,       ## home win probability from unified SpreadMapper ##
+    )
 
 def blend_spread_ml_win_prob_series(
     spread_wp:pd.Series,
