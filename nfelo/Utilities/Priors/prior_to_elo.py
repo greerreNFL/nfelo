@@ -35,12 +35,17 @@ def prior_to_elo(
     ## extract the priors mean and normalization table ##
     mu = float(config['mu'])
     normalization = config['normalization']
-    ## translate season to string for lookup ##
-    season_str = str(season)
+    ## exact season, else last known σ for a later season ##
+    sigma = normalization.get(str(season))
+    if sigma is None:
+        prior_seasons = [int(k) for k in normalization if int(k) <= season]
+        if prior_seasons:
+            used_season = max(prior_seasons)
+            sigma = normalization.get(str(used_season))
+            print('Warning -- {0} has no σ for {1}, using {2}'.format(
+                prior_type, season, used_season
+            ))
     ## fallback when raw value or sigma unavailable ##
-    if season_str not in normalization:
-        return mean_reverted_elo
-    sigma = normalization.get(season_str)
     if value is None or pd.isnull(value) or sigma is None or float(sigma) <= 0:
         return mean_reverted_elo
     ## z-score then map to common elo scale ##

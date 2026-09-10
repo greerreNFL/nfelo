@@ -3,8 +3,8 @@
   "raw_value_col": "projected_dvoa",
   "mu": 0.0,
   "meta": {
-    "trained_through_season": 2025,
-    "trained_at": "2026-06-18"
+    "trained_through_season": 2026,
+    "trained_at": "2026-09-10"
   },
   "training": {
     "half_life": 3,
@@ -28,6 +28,7 @@
     "2022": 0.11036972,
     "2023": 0.10527251,
     "2024": 0.10451608,
-    "2025": 0.10445871
+    "2025": 0.10445871,
+    "2026": 0.10767744
   }
 }
