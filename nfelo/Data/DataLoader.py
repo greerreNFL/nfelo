@@ -403,15 +403,29 @@ class DataLoader:
         '''
         Add 538 data to games
         '''
+        qbelo = self.db['qbelo'][[
+            'game_id', 'elo1_pre', 'elo1_post',
+            'elo2_pre', 'elo2_post', 'qbelo1_pre',
+            'qbelo1_post', 'qbelo2_pre', 'qbelo2_post',
+            'qb1', 'qb2', 'qb1_adj', 'qb2_adj',
+            'elo_prob1', 'qbelo_prob1'
+        ]].copy()
+        ## qbelo can have two rows for the same game_id mid-week ##
+        ## null game_ids are pre-fastr history and must be left alone ##
+        dup_ids = qbelo.loc[
+            qbelo['game_id'].notna() & qbelo['game_id'].duplicated(),
+            'game_id'
+        ]
+        if len(dup_ids) > 0:
+            print('          Warning - {0} qbelo game_ids were duplicated'.format(
+                dup_ids.nunique()
+            ))
+            print('                    Keeping the last row for each game_id')
+            keep = qbelo['game_id'].isna() | ~qbelo['game_id'].duplicated(keep='last')
+            qbelo = qbelo[keep].copy()
         games = pd.merge(
             games,
-            self.db['qbelo'][[
-                'game_id', 'elo1_pre', 'elo1_post',
-                'elo2_pre', 'elo2_post', 'qbelo1_pre',
-                'qbelo1_post', 'qbelo2_pre', 'qbelo2_post',
-                'qb1', 'qb2', 'qb1_adj', 'qb2_adj',
-                'elo_prob1', 'qbelo_prob1'
-            ]].rename(columns={
+            qbelo.rename(columns={
                 'elo1_pre' : 'home_elo_pre',
                 'elo1_post' : 'home_elo_post',
                 'elo2_pre' : 'away_elo_pre',
