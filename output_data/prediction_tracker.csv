@@ -1,6 +1,6 @@
 home_team,away_team,nfelo_projected_home_spread,nfelo_projected_home_win_probability,projected_winner,projected_winner_probability
 CIN,TEN,-10.5,0.834,CIN,0.834
-JAX,IND,-10.0,0.823,JAX,0.823
+JAX,IND,-9.5,0.811,JAX,0.811
 DAL,ARI,-8.5,0.792,DAL,0.792
 MIA,NE,7.0,0.255,NE,0.745
 LAR,LAC,-6.5,0.73,LAR,0.73
@@ -8,7 +8,7 @@ WAS,PHI,-5.5,0.699,WAS,0.699
 PIT,CLE,-4.5,0.672,PIT,0.672
 GB,CAR,-3.5,0.631,GB,0.631
 DET,MIN,-3.5,0.631,DET,0.631
-SEA,CHI,-3.5,0.631,SEA,0.631
+SEA,CHI,-3.0,0.613,SEA,0.613
 BUF,BAL,-3.0,0.613,BUF,0.613
 TB,ATL,-2.5,0.595,TB,0.595
 NYJ,LV,-1.5,0.557,NYJ,0.557
