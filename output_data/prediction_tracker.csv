@@ -1,6 +1,6 @@
 home_team,away_team,nfelo_projected_home_spread,nfelo_projected_home_win_probability,projected_winner,projected_winner_probability
 CIN,TEN,-13.5,0.888,CIN,0.888
-JAX,IND,-10.5,0.833,JAX,0.833
+JAX,IND,-10.0,0.823,JAX,0.823
 DAL,ARI,-9.0,0.8,DAL,0.8
 MIA,NE,7.0,0.255,NE,0.745
 LAR,LAC,-6.5,0.73,LAR,0.73
