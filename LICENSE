@@ -1,0 +1,38 @@
+nfelo License
+Copyright (c) 2021-present
+
+1. What this covers
+
+These terms apply to the original software in this repository and to the original nfelo numbers in files in output_data/ published here (together, the "Licensed Material").
+
+They do not apply to third-party software, datasets, columns, trademarks, logos, or other material included or referenced in this repository. Those remain under their own licenses and owners.
+
+2. Permission
+
+Subject to these terms, you may read, quote, reference, analyze, and republish the Licensed Material.
+
+If you republish the software, you must include this license with it, unchanged.
+
+If you republish original nfelo outputs (for example ratings, projections, or other published numbers), you may do so without including this license.
+
+3. No other permission
+
+No other rights are granted, by implication or otherwise.
+
+You are not granted the right to run, execute, compile, operate, or invoke the software, or to import or call it as a library, including to produce numbers, ratings, projections, or other outputs.
+
+You are not granted the right to modify the software or to make new works based on it.
+
+"Analyze" means reading and reasoning about the material. It does not mean executing it.
+
+4. Reservation
+
+All rights not expressly granted are reserved.
+
+5. Fair use
+
+These terms do not limit any fair use or other right you have that cannot be waived.
+
+6. No warranty
+
+THE LICENSED MATERIAL IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE LICENSED MATERIAL OR THESE TERMS.
