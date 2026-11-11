@@ -1,40 +1,23 @@
-import pandas as pd
 import pathlib
-import json
 
-from .Data import DataLoader
-from .Model import Nfelo
-from .Performance import NfeloGrader
-from .Formatting import NfeloFormatter
+from .storage import (
+    OUTPUT_FILES,
+    download_output_file,
+    output_folder,
+)
 
-def update_nfelo():
+
+def fetch_nfelo():
     '''
-    Updates the nfelo model and saves the current file
+    Download the current nfelo output CSVs from storage into output_data/.
+
+    Requires STORAGE_URL, STORAGE_KEY, and NFELO_STORAGE_PATH.
     '''
-    ## load config ##
-    config_loc = '{0}/config.json'.format(
-        pathlib.Path(__file__).parent.parent.resolve()
-    )
-    with open(config_loc, 'r') as fp:
-        config = json.load(fp)
-    ## load data ##
-    data = DataLoader()
-    nfelo = Nfelo(
-        data=data,
-        config=config['models']['nfelo']
-    )
-    nfelo.run()
-    nfelo.save_reversions()
-    ## save some output ##
-    nfelo.updated_file.to_csv(
-        '{0}/Data/Intermediate Data/current_file_w_nfelo.csv'.format(
-            pathlib.Path(__file__).parent.resolve()
-        )
-    )
-    ## grade #
-    graded = NfeloGrader(nfelo.updated_file)
-    ## format ##
-    nfelo.project_spreads()
-    formatting = NfeloFormatter(
-        data=data, model=nfelo, graded=graded
-    )
+    folder = output_folder()
+    pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
+    for filename in OUTPUT_FILES:
+        content = download_output_file(filename)
+        dest = '{0}/{1}'.format(folder, filename)
+        with open(dest, 'wb') as f:
+            f.write(content)
+    return folder

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [DEPRECATED] - 2026-11-11
+
+### Changed
+
+- **Public package is now a fetch client.** Model source, training, optimizer, and config are no longer shipped in this repository. Future model runs are private; this repo continues to publish the same `output_data/` CSVs.
+
+### Added
+
+- `LICENSE` for the public repository and published outputs.
+
 ## [4.3.1] - 2026-08-15
 
 ### Changed
