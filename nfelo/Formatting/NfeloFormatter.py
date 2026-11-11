@@ -191,6 +191,59 @@ class NfeloFormatter:
             '{0}/wt_ratings.csv'.format(self.output_loc)
         )
 
+    def _historic_projection_rows(self, proj):
+        '''
+        Slim, rounded rows written to historic_projected_spreads.csv
+        '''
+        hist_cols = [
+            'game_id',
+            'nfelo_version',
+            'season',
+            'week',
+            'away_team',
+            'home_team',
+            'home_line_open',
+            'home_closing_line_rounded_nfelo',
+            'home_probability_nfelo',
+            'home_line_pre_regression',
+            'away_loss_prob',
+            'away_push_prob',
+            'away_cover_prob',
+            'away_ev',
+            'home_loss_prob',
+            'home_push_prob',
+            'home_cover_prob',
+            'home_ev',
+            'sort',
+        ]
+        out = proj.copy()
+        config_name = self.model.config.get('config_name', '')
+        if isinstance(config_name, str) and config_name.startswith('nfelo_v'):
+            out['nfelo_version'] = config_name[len('nfelo_v'):]
+        else:
+            out['nfelo_version'] = config_name
+        out['season'] = out['season'].astype(int)
+        out['week'] = out['week'].astype(int)
+        for col in [
+            'home_line_open',
+            'home_closing_line_rounded_nfelo',
+            'home_line_pre_regression',
+        ]:
+            out[col] = out[col].round(2)
+        for col in [
+            'home_probability_nfelo',
+            'away_loss_prob',
+            'away_push_prob',
+            'away_cover_prob',
+            'home_loss_prob',
+            'home_push_prob',
+            'home_cover_prob',
+        ]:
+            out[col] = out[col].round(4)
+        for col in ['away_ev', 'home_ev', 'sort']:
+            out[col] = out[col].round(4)
+        return out[hist_cols].copy()
+
     def gen_projections(self):
         '''
         Generates projections from the passed Nfelo model
@@ -285,24 +338,20 @@ class NfeloFormatter:
             index=False
         )
         ## add to historics ##
-        hist = pd.read_csv(
-            '{0}/historic_projected_spreads.csv'.format(self.external_folder),
-            index_col=0
+        hist_path = '{0}/historic_projected_spreads.csv'.format(
+            self.external_folder
         )
-        ## remove anything with matching game id ##
+        hist_proj = self._historic_projection_rows(proj)
+        hist = pd.read_csv(hist_path)
         hist = hist[
             ~numpy.isin(
                 hist['game_id'],
-                proj['game_id'].unique().tolist()
+                hist_proj['game_id'].unique().tolist()
             )
         ].copy()
-        ## append ##
-        hist = pd.concat([hist,proj]).reset_index(drop=True)
-        ## save ##
-        hist.to_csv(
-            ## change to outptu folder once confirmed the formatter is working correctly ##
-            '{0}/historic_projected_spreads.csv'.format(self.external_folder)
-        )
+        hist = pd.concat([hist, hist_proj], ignore_index=True)
+        hist = hist[hist_proj.columns.tolist()]
+        hist.to_csv(hist_path, index=False)
         ## create a flat file of current elos ##
         flat = pd.concat([
             proj[['season', 'week', 'home_team', 'home_nfelo_elo', 'home_538_qb_adj']].rename(columns={
