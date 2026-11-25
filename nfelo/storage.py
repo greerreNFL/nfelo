@@ -13,7 +13,9 @@ OUTPUT_FILES = [
     'nfelo_games.csv',
     'historic_projected_spreads.csv',
     'elo_snapshot.csv',
-    'prediction_tracker.csv'
+    'prediction_tracker.csv',
+    # Current slate. Gitignored on purpose; fetched for local consumers only.
+    'projected_spreads.csv',
 ]
 
 
